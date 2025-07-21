@@ -1,82 +1,253 @@
-# Bdg
+# BusinessDocumentGateway MVP Roadmap
 
-<a alt="Nx logo" href="https://nx.dev" target="_blank" rel="noreferrer"><img src="https://raw.githubusercontent.com/nrwl/nx/master/images/nx-logo.png" width="45"></a>
+## 🎯 MVP Objective
+Build a functional document collection platform that allows users to create document requests, share upload links with clients, and track progress. Focus on core functionality over advanced features.
 
-✨ Your new, shiny [Nx workspace](https://nx.dev) is almost ready ✨.
+## 📋 Core Features for MVP
 
-[Learn more about this workspace setup and its capabilities](https://nx.dev/getting-started/tutorials/vue-standalone-tutorial?utm_source=nx_project&amp;utm_medium=readme&amp;utm_campaign=nx_projects) or run `npx nx graph` to visually explore what was created. Now, let's get you up to speed!
+### Phase 1: Foundation (Week 1-2)
+**Priority: Must Have**
 
-## Finish your CI setup
+#### 1.1 User Authentication & Management
+- User registration/login (email + password)
+- Basic profile management
+- Password reset functionality
+- Email verification
+- Simple dashboard layout
 
-[Click here to finish setting up your workspace!](https://cloud.nx.app/connect/26I6ipgPx6)
+#### 1.2 Basic UI/UX Setup
+- Responsive design framework
+- Navigation structure
+- Landing page (simplified version)
+- Dashboard skeleton
+- Basic styling system
 
+**Tech Stack Recommendation:**
+- **Frontend**: React.js with Tailwind CSS
+- **Backend**: Node.js with Express.js
+- **Database**: PostgreSQL
+- **Authentication**: JWT tokens
+- **File Storage**: AWS S3 or similar
+- **Email**: SendGrid or AWS SES
 
-## Run tasks
+### Phase 2: Core Document Collection (Week 3-4)
+**Priority: Must Have**
 
-To run the dev server for your app, use:
+#### 2.1 Document Request Creation
+- Create new document collection request
+- Add document list items with:
+  - Document name
+  - Description
+  - Required/Optional status
+  - File type restrictions (optional)
+- Set collection deadline
+- Add client email address
+- Generate unique collection link
 
-```sh
-npx nx serve bdg
+#### 2.2 Client Upload Interface
+- Public upload page (no login required)
+- Display document requirements clearly
+- File upload functionality
+- Basic file validation (size, type)
+- Upload progress indicator
+- Success confirmation
+
+#### 2.3 Basic File Management
+- File storage system
+- Basic file organization by collection
+- File download for collection owner
+
+### Phase 3: Progress Tracking (Week 5-6)
+**Priority: Must Have**
+
+#### 3.1 Collection Dashboard
+- List all collections (active, completed, overdue)
+- Progress indicators (X of Y documents uploaded)
+- Collection status (in progress, completed, expired)
+- Basic search/filter functionality
+
+#### 3.2 Collection Details View
+- Individual collection overview
+- Document checklist with upload status
+- Client information
+- Collection link sharing options
+- Basic download options
+
+#### 3.3 Notifications (Basic)
+- Email notification when collection is completed
+- Email notification when new documents are uploaded
+- Simple notification settings
+
+### Phase 4: Essential Features (Week 7-8)
+**Priority: Should Have**
+
+#### 4.1 Automated Reminders (Basic)
+- Manual reminder sending
+- Basic email template for reminders
+- Track reminder history
+
+#### 4.2 File Management Improvements
+- Bulk download functionality
+- Basic file preview (images, PDFs)
+- File replacement capability
+
+#### 4.3 Collection Management
+- Edit collection details
+- Extend deadlines
+- Archive completed collections
+- Delete collections
+
+## 🛠 Technical Implementation Plan
+
+### Database Schema (PostgreSQL)
+
+```sql
+-- Core tables for MVP
+users (id, email, password_hash, name, created_at, updated_at)
+collections (id, user_id, title, client_email, deadline, status, unique_link, created_at, updated_at)
+collection_items (id, collection_id, name, description, required, file_type_filter, order_index)
+uploads (id, collection_item_id, filename, file_path, file_size, uploaded_at)
+notifications (id, user_id, type, message, read, created_at)
 ```
 
-To create a production bundle:
+### API Endpoints (REST)
 
-```sh
-npx nx build bdg
+```
+Authentication:
+POST /api/auth/register
+POST /api/auth/login
+POST /api/auth/logout
+POST /api/auth/reset-password
+
+Collections:
+GET /api/collections (user's collections)
+POST /api/collections (create new)
+GET /api/collections/:id (collection details)
+PUT /api/collections/:id (update collection)
+DELETE /api/collections/:id
+
+Public Upload:
+GET /api/public/:unique_link (collection info)
+POST /api/public/:unique_link/upload (file upload)
+
+Files:
+GET /api/collections/:id/download (bulk download)
+GET /api/files/:id/download (single file)
+DELETE /api/files/:id
 ```
 
-To see all available targets to run for a project, run:
+### File Upload Flow
+1. Client visits unique link
+2. Frontend uploads file to temporary storage
+3. Backend validates and moves to permanent storage
+4. Database updated with file information
+5. Email notification sent to collection owner
 
-```sh
-npx nx show project bdg
+## 📅 Development Timeline
+
+### Week 1-2: Foundation Setup
+- [ ] Set up development environment
+- [ ] Initialize project structure
+- [ ] Set up database and basic models
+- [ ] Implement user authentication
+- [ ] Create basic UI components
+- [ ] Deploy development environment
+
+### Week 3-4: Core Features
+- [ ] Collection creation functionality
+- [ ] Public upload interface
+- [ ] File upload and storage system
+- [ ] Basic email notifications
+- [ ] Collection viewing and management
+
+### Week 5-6: Progress Tracking
+- [ ] Dashboard with collection list
+- [ ] Collection detail views
+- [ ] Progress indicators
+- [ ] Basic notification system
+- [ ] File download functionality
+
+### Week 7-8: Polish & Testing
+- [ ] Manual reminder system
+- [ ] Bulk download feature
+- [ ] UI/UX improvements
+- [ ] Bug fixes and testing
+- [ ] Deployment preparation
+
+## 🔧 Infrastructure & Deployment
+
+### MVP Infrastructure
+- **Hosting**: Vercel (frontend) + Railway/Heroku (backend)
+- **Database**: PostgreSQL (managed service)
+- **File Storage**: AWS S3 or Cloudflare R2
+- **Email Service**: SendGrid free tier
+- **Domain**: Custom domain for professionalism
+
+### Environment Setup
+```
+Development: Local setup with Docker
+Staging: Automated deployment for testing
+Production: Secure, monitored deployment
 ```
 
-These targets are either [inferred automatically](https://nx.dev/concepts/inferred-tasks?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects) or defined in the `project.json` or `package.json` files.
+## 📊 Success Metrics for MVP
 
-[More about running tasks in the docs &raquo;](https://nx.dev/features/run-tasks?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
+### Technical Metrics
+- [ ] User can create account and login
+- [ ] User can create document collection in <3 minutes
+- [ ] Client can upload documents without technical issues
+- [ ] File upload success rate >95%
+- [ ] Email notifications delivered within 5 minutes
 
-## Add new projects
+### Business Metrics
+- [ ] 10+ beta users complete full workflow
+- [ ] Average of 3+ collections per active user
+- [ ] 70%+ collection completion rate
+- [ ] User retention >50% after first week
 
-While you could add new projects to your workspace manually, you might want to leverage [Nx plugins](https://nx.dev/concepts/nx-plugins?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects) and their [code generation](https://nx.dev/features/generate-code?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects) feature.
+## 🚀 Post-MVP Features (Future Phases)
 
-Use the plugin's generator to create new projects.
+### Phase 5: Advanced Features
+- Advanced reminder scheduling
+- Custom email templates
+- Integration with cloud storage (Dropbox, Google Drive)
+- Mobile app
+- Advanced analytics and reporting
 
-To generate a new application, use:
+### Phase 6: Business Features
+- Team collaboration
+- White-label options
+- API for integrations
+- Advanced security features
+- Compliance tools (GDPR, etc.)
 
-```sh
-npx nx g @nx/vue:app demo
-```
+## 💡 Development Tips
 
-To generate a new library, use:
+### MVP Best Practices
+1. **Start Simple**: Focus on one user flow at a time
+2. **User Testing**: Get feedback after each phase
+3. **Iterate Fast**: Keep features minimal but functional
+4. **Document Everything**: API docs, setup guides
+5. **Monitor Performance**: Set up basic analytics early
 
-```sh
-npx nx g @nx/vue:lib mylib
-```
+### Critical Decisions to Make Early
+- File size limits (start with 10MB per file, 100MB per collection)
+- File type restrictions (documents, images, basic types)
+- Collection expiry (default 30 days)
+- User limits (start with 5 active collections per user)
 
-You can use `npx nx list` to get a list of installed plugins. Then, run `npx nx list <plugin-name>` to learn about more specific capabilities of a particular plugin. Alternatively, [install Nx Console](https://nx.dev/getting-started/editor-setup?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects) to browse plugins and generators in your IDE.
+## 🎯 Launch Strategy
 
-[Learn more about Nx plugins &raquo;](https://nx.dev/concepts/nx-plugins?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects) | [Browse the plugin registry &raquo;](https://nx.dev/plugin-registry?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
+### Beta Launch (Week 9-10)
+- [ ] 10-15 beta users from personal network
+- [ ] Collect detailed feedback
+- [ ] Fix critical bugs
+- [ ] Refine onboarding flow
 
+### Soft Launch (Week 11-12)
+- [ ] Limited marketing to specific audience
+- [ ] Content marketing (blog posts, social media)
+- [ ] Gather user testimonials
+- [ ] Iterate based on real usage
 
-[Learn more about Nx on CI](https://nx.dev/ci/intro/ci-with-nx#ready-get-started-with-your-provider?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-
-## Install Nx Console
-
-Nx Console is an editor extension that enriches your developer experience. It lets you run tasks, generate code, and improves code autocompletion in your IDE. It is available for VSCode and IntelliJ.
-
-[Install Nx Console &raquo;](https://nx.dev/getting-started/editor-setup?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-
-## Useful links
-
-Learn more:
-
-- [Learn more about this workspace setup](https://nx.dev/getting-started/tutorials/vue-standalone-tutorial?utm_source=nx_project&amp;utm_medium=readme&amp;utm_campaign=nx_projects)
-- [Learn about Nx on CI](https://nx.dev/ci/intro/ci-with-nx?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-- [Releasing Packages with Nx release](https://nx.dev/features/manage-releases?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-- [What are Nx plugins?](https://nx.dev/concepts/nx-plugins?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-
-And join the Nx community:
-- [Discord](https://go.nx.dev/community)
-- [Follow us on X](https://twitter.com/nxdevtools) or [LinkedIn](https://www.linkedin.com/company/nrwl)
-- [Our Youtube channel](https://www.youtube.com/@nxdevtools)
-- [Our blog](https://nx.dev/blog?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
+This roadmap focuses on delivering core value quickly while building a solid foundation for future growth. Each phase builds upon the previous one, allowing for continuous user feedback and iteration.
