@@ -16,11 +16,12 @@ export const documentsStore = defineStore('documents', () => {
     }
     const pendingStatusId = documentStatus.value.find((s) => s.name === 'Pending')
     let requestDocumentQuery = []
+    console.log('Creating new documents:', requestDocuments)
     requestDocuments.value.forEach((document) => {
       requestDocumentQuery.push({
         name: document.name,
         mandatory: document.mandatory,
-        expectedDate: document.expectedDate,
+        expectedDate: new Date(document.specificDate),
         desc: document.desc,
         statusId: pendingStatusId.id,
         requestId: requestId,
@@ -54,6 +55,20 @@ export const documentsStore = defineStore('documents', () => {
   }
 
   // Setup real-time subscription for documents
+
+  async function removeDocumentsByRequestId(requestId) {
+    try {
+      const { error } = await supabase.from('documents').delete().eq('requestId', requestId)
+      if (error) {
+        console.error('Fail to delete documents for request', requestId, error)
+        return false
+      }
+      return true
+    } catch (error) {
+      console.error('Fail to delete documents for request', requestId, error)
+      return false
+    }
+  }
   /* const setupRealtimeSubscription = () => {
   const channel = supabase
     .channel('document_requests_changes')
@@ -78,5 +93,5 @@ export const documentsStore = defineStore('documents', () => {
   })
 } */
 
-  return { requests, fetchRequestsDocuments, createNewDocuments }
+  return { requests, fetchRequestsDocuments, createNewDocuments, removeDocumentsByRequestId }
 })

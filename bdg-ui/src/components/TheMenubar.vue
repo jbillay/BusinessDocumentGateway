@@ -95,6 +95,7 @@ const userLogout = async () => {
       severity: 'error',
       summary: 'Logout Failed',
       detail: 'An error occurred while logging out. Please try again.',
+      life: 8000,
     })
   }
 }

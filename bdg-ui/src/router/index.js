@@ -47,6 +47,14 @@ const router = createRouter({
       name: 'newRequest',
       component: () => import('../views/NewRequest.vue'),
     },
+    {
+      path: '/request/:id',
+      name: 'request-detail',
+      component: () => import('../views/RequestDetailView.vue'),
+      meta: {
+        requiresAuth: true,
+      },
+    },
   ],
 })
 

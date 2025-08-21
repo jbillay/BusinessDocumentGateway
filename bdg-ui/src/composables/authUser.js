@@ -36,7 +36,6 @@ export default function useAuthUser() {
    * Check if the user is logged in or not
    */
   const isLoggedIn = () => {
-    console.log('Checking if user is logged in:', userSession.isUserAuthenticated())
     return userSession.isUserAuthenticated()
   }
 

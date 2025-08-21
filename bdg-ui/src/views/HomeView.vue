@@ -22,7 +22,7 @@
               <InputIcon>
                 <i class="pi pi-search" />
               </InputIcon>
-              <InputText placeholder="Search requests" />
+              <InputText v-model="searchQuery" placeholder="Search requests" />
             </IconField>
           </div>
           <div class="flex gap-2">
@@ -56,6 +56,7 @@
               :requests="filteredRequests"
               :requestStatus="requestStatus"
               :loading="loading"
+              @request-deleted="onRequestDeleted"
             />
           </template>
         </Card>
@@ -63,49 +64,13 @@
     </main>
 
     <TheFooter />
-
-    <!-- New Request Modal -->
-    <Dialog v-model="showNewRequestModal">
-      <Card>
-        <template #header>
-          <h3 class="text-lg font-semibold">Create New Document Request</h3>
-        </template>
-
-        <form @submit.prevent="createRequest" class="space-y-4">
-          <InputText v-model="newRequest.name" placeholder="Enter request name" />
-
-          <InputText
-            v-model="newRequest.client_email"
-            type="email"
-            placeholder="client@example.com"
-          />
-
-          <InputText v-model="newRequest.client_name" placeholder="Client full name" />
-
-          <InputText v-model="newRequest.expected_date" type="date" />
-
-          <Textarea
-            v-model="newRequest.description"
-            placeholder="Describe what documents are needed..."
-          />
-        </form>
-
-        <template #footer>
-          <div class="flex justify-end gap-3">
-            <Button variant="ghost" @click="showNewRequestModal = false"> Cancel </Button>
-            <Button @click="createRequest" :loading="creating"> Create Request </Button>
-          </div>
-        </template>
-      </Card>
-    </Dialog>
   </div>
 </template>
 
 <script setup>
-// TODO: Add actions for the request
-// TODO: Add a display for documents
-// TODO: Fix defect UI & feature search request
-import { InputText, Select, Textarea, Card, Dialog, Button, InputIcon, IconField } from 'primevue'
+// TODO: Add actions for the request - edit & Mark as Completed
+// TODO: Fix defect UI search
+import { InputText, Select, Card, Button, InputIcon, IconField } from 'primevue'
 import TheMenubar from '../components/TheMenubar.vue'
 import TheFooter from '../components/TheFooter.vue'
 import StatCards from '@/components/StatCards.vue'
@@ -126,8 +91,6 @@ const documentStatus = ref(documentStatusStoreSession.requestStatus)
 const loading = ref(true)
 const searchQuery = ref('')
 const statusFilter = ref('')
-const showNewRequestModal = ref(false)
-const creating = ref(false)
 
 // TODO: Review the status mapping
 const statusOptions = [
@@ -152,61 +115,30 @@ const filteredRequests = computed(() => {
     filtered = filtered.filter(
       (request) =>
         request.name.toLowerCase().includes(query) ||
-        request.client_email.toLowerCase().includes(query) ||
-        request.client_name.toLowerCase().includes(query),
+        (Array.isArray(request.client_email)
+          ? request.client_email.some((e) => e.email && e.email.toLowerCase().includes(query))
+          : false),
     )
   }
   if (statusFilter.value && statusFilter.value.value) {
     // TODO: Add the overdue filter (status does not exit need to be calculated on the fly)
-    filtered = filtered.filter(
-      (request) => statusLabel(request.statusId) === statusFilter.value.label,
-    )
+    if (statusFilter.value.label === 'Overdue') {
+      const today = new Date()
+      filtered = filtered.filter((request) => new Date(request.expectedDate) < today)
+    } else {
+      filtered = filtered.filter(
+        (request) => statusLabel(request.statusId) === statusFilter.value.label,
+      )
+    }
   }
-
   return filtered
 })
 
-// New request form
-const newRequest = ref({
-  name: '',
-  client_email: '',
-  client_name: '',
-  expected_date: '',
-  description: '',
-})
-
-/*
-const getRowActions = (row) => {
-  return [
-    [
-      {
-        label: 'Mark as In Progress',
-        icon: 'i-heroicons-play',
-        click: () => updateRequestStatus(row.id, 'in-progress'),
-        disabled: row.status === 'in-progress' || row.status === 'completed',
-      },
-      {
-        label: 'Mark as Completed',
-        icon: 'i-heroicons-check',
-        click: () => updateRequestStatus(row.id, 'completed'),
-        disabled: row.status === 'completed',
-      },
-    ],
-    [
-      {
-        label: 'Edit',
-        icon: 'i-heroicons-pencil',
-        click: () => editRequest(row.id),
-      },
-      {
-        label: 'Delete',
-        icon: 'i-heroicons-trash',
-        click: () => deleteRequest(row.id),
-      },
-    ],
-  ]
+// Remove request from requests list when deleted
+function onRequestDeleted(requestId) {
+  const idx = requests.value.findIndex((r) => r.id === requestId)
+  if (idx !== -1) requests.value.splice(idx, 1)
 }
-  */
 
 const refreshData = async () => {
   loading.value = true

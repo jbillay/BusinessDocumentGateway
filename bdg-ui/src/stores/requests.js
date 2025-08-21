@@ -3,17 +3,60 @@ import { ref } from 'vue'
 import useSupabase from '../lib/supabase'
 import { userSessionStore } from '../stores/userSession'
 import { requestStatusStore } from '../stores/requestStatus'
+import { documentStatusStore } from '../stores/documentStatus'
 import { documentsStore } from '../stores/documents'
 
 export const requestsStore = defineStore('requests', () => {
+  // Restore missing reactive state
   const { supabase } = useSupabase()
   const userSession = userSessionStore()
   const requestStatusStoreSession = requestStatusStore()
   const documentStoreSession = documentsStore()
+  const documentStatusStoreSession = documentStatusStore()
 
   const requests = ref([])
   const user = ref(userSession.getLocalUser())
   const requestStatus = ref(requestStatusStoreSession.requestStatus)
+
+  async function fetchRequestByIdWithDocuments(requestId) {
+    if (!userSession.isUserAuthenticated) {
+      return null
+    }
+    try {
+      // Fetch the request and ensure ownership
+      const { data, error } = await supabase
+        .from('requests')
+        .select('*')
+        .eq('id', requestId)
+        .eq('ownerId', user.value.id)
+        .single()
+      if (error || !data) {
+        console.error('Request not found or not owned by user', error)
+        return null
+      }
+      // Fetch associated documents
+      const documentList = await documentStoreSession.fetchRequestsDocuments([requestId])
+      let documentStatusList = documentStatusStoreSession.documentStatus
+      if (!documentStatusList || !documentStatusList.length) {
+        documentStatusList = await documentStatusStoreSession.fecthDocumentStatus()
+      }
+      if (documentStatusList && documentStatusList.value) {
+        documentStatusList = documentStatusList.value
+      }
+      const docs = (documentList.data || []).filter((doc) => doc.requestId === requestId)
+      data.documents = docs.map((doc) => {
+        const statusObj = documentStatusList.find((s) => s.id === doc.statusId)
+        return {
+          ...doc,
+          statusName: statusObj ? statusObj.name : 'Unknown',
+        }
+      })
+      return data
+    } catch (error) {
+      console.error('Fail to get request by id', error)
+      return null
+    }
+  }
 
   async function createNewRequest(requestInfo, requestDocuments) {
     const pendingStatusId = requestStatus.value.find((s) => s.name === 'Pending')
@@ -86,7 +129,29 @@ export const requestsStore = defineStore('requests', () => {
           requestIdList.push(request.id)
         })
         const documentList = await documentStoreSession.fetchRequestsDocuments(requestIdList)
-        console.log('Document list', documentList)
+        // Map documents to each request
+        if (documentList && documentList.data) {
+          // Ensure document statuses are loaded
+          let documentStatusList = documentStatusStoreSession.documentStatus
+          if (!documentStatusList || !documentStatusList.length) {
+            documentStatusList = await documentStatusStoreSession.fetchDocumentStatus()
+          }
+          // If still a ref, get .value
+          if (documentStatusList && documentStatusList.value) {
+            documentStatusList = documentStatusList.value
+          }
+          requests.value.forEach((request) => {
+            const docs = documentList.data.filter((doc) => doc.requestId === request.id)
+            // Add statusName to each document
+            request.documents = docs.map((doc) => {
+              const statusObj = documentStatusList.find((s) => s.id === doc.statusId)
+              return {
+                ...doc,
+                statusName: statusObj ? statusObj.name : 'Unknown',
+              }
+            })
+          })
+        }
       }
       return requests.value
     } catch (error) {
@@ -95,29 +160,32 @@ export const requestsStore = defineStore('requests', () => {
   }
 
   // Setup real-time subscription for requests
-  /* const setupRealtimeSubscription = () => {
-  const channel = supabase
-    .channel('document_requests_changes')
-    .on(
-      'postgres_changes',
-      {
-        event: '*',
-        schema: 'public',
-        table: 'document_requests',
-        filter: `user_id=eq.${user.value.id}`,
-      },
-      (payload) => {
-        console.log('Real-time update:', payload)
-        refreshData() // Refresh data on changes
-      },
-    )
-    .subscribe()
 
-  // Cleanup on unmount
-  onUnmounted(() => {
-    supabase.removeChannel(channel)
-  })
-} */
+  async function removeRequestAndDocuments(requestId) {
+    try {
+      // Remove all documents for this request
+      await documentStoreSession.removeDocumentsByRequestId(requestId)
+      // Remove the request itself
+      const { error } = await supabase.from('requests').delete().eq('id', requestId)
+      if (error) {
+        console.error('Fail to delete request', requestId, error)
+        return false
+      }
+      // Optionally update local state
+      requests.value = requests.value.filter((r) => r.id !== requestId)
+      return true
+    } catch (error) {
+      console.error('Fail to delete request and documents', requestId, error)
+      return false
+    }
+  }
 
-  return { requests, fetchUserRequests, fetchUserRequestsWithDocuments, createNewRequest }
+  return {
+    requests,
+    fetchUserRequests,
+    fetchUserRequestsWithDocuments,
+    createNewRequest,
+    removeRequestAndDocuments,
+    fetchRequestByIdWithDocuments,
+  }
 })

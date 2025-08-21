@@ -3,7 +3,7 @@
     <!-- Fixed Navbar -->
     <TheMenubar :new="false" />
 
-    <!-- Main Content -->
+    <!-- Main content-->
     <main class="pt-4 pb-4">
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div class="card flex justify-center">
@@ -15,90 +15,15 @@
             </StepList>
             <StepPanels>
               <StepPanel v-slot="{ activateCallback }" value="1">
-                <div class="flex flex-col">
-                  <div
-                    class="border-2 border-dashed border-surface-200 dark:border-surface-700 rounded flex-auto flex justify-center items-center font-medium"
-                  >
-                    <Form v-slot="$formRequestDetail" class="flex flex-col gap-4 w-full sm:w-56">
-                      <div class="flex flex-col pt-4">
-                        <FloatLabel variant="on">
-                          <label for="requestName"> Request Name </label>
-                          <InputText
-                            id="requestName"
-                            v-model="newRequest.name"
-                            placeholder="Enter request name"
-                          />
-                          <Message
-                            v-if="$formRequestDetail.username?.invalid"
-                            severity="error"
-                            size="small"
-                            variant="simple"
-                            >{{ $formRequestDetail.username.error?.message }}</Message
-                          >
-                        </FloatLabel>
-                      </div>
-                      <div class="flex flex-col pt-4">
-                        <FloatLabel variant="on">
-                          <label for="expectedDate"> Expected Closure Date </label>
-                          <DatePicker
-                            id="expectedDate"
-                            name="expectedDate"
-                            v-model="newRequest.expected_date"
-                            showIcon
-                            fluid
-                            iconDisplay="Expected Date"
-                            showButtonBar
-                            placeholder="Enter Expected Date"
-                          />
-                        </FloatLabel>
-                      </div>
-                      <Fieldset legend="Client Emails" class="pt-4">
-                        <Chip
-                          v-for="clientEmail in newRequest.client_email"
-                          :key="clientEmail.email"
-                          :label="clientEmail.email"
-                          @remove="removeClientEmail(clientEmail.email)"
-                          removable
-                        >
-                          <template #removeicon="{ removeCallback, keydownCallback }">
-                            <i
-                              class="pi pi-minus-circle"
-                              @click="removeCallback"
-                              @keydown="keydownCallback"
-                            />
-                          </template>
-                        </Chip>
-                      </Fieldset>
-                      <div>
-                        <FloatLabel variant="on">
-                          <label for="clientEmail"> Add client email </label>
-                          <InputText
-                            id="clientEmail"
-                            v-model="clientEmail"
-                            placeholder="Enter a client email"
-                          />
-                        </FloatLabel>
-                        <Button
-                          label="Add Email"
-                          icon="pi pi-email"
-                          class="p-button p-button-secondary p-button-sm mt-2"
-                          @click="insertEmailToChip()"
-                        />
-                      </div>
-                      <div class="flex flex-col pt-4">
-                        <FloatLabel variant="on">
-                          <label for="requestDescription"> Request Description </label>
-                          <Textarea
-                            id="requestDescription"
-                            v-model="newRequest.description"
-                            rows="5"
-                            placeholder="Enter request description"
-                          />
-                        </FloatLabel>
-                      </div>
-                    </Form>
-                  </div>
-                </div>
+                <RequestDetailsStep
+                  :newRequest="newRequest"
+                  :clientEmail="clientEmail"
+                  :errors="errors"
+                  :insertEmailToChip="insertEmailToChip"
+                  :removeClientEmail="removeClientEmail"
+                  @update:newRequest="(val) => (newRequest = val)"
+                  @update:clientEmail="(val) => (clientEmail = val)"
+                />
                 <div class="flex pt-6 justify-end">
                   <Button label="Next" icon="pi pi-arrow-right" @click="activateCallback('2')" />
                 </div>
@@ -108,21 +33,11 @@
                   <div
                     class="border-2 border-dashed border-surface-200 dark:border-surface-700 rounded justify-center items-center font-medium"
                   >
-                    <DataTable :value="requestedDocuments" tableStyle="min-width: 50rem">
-                      <template #header>
-                        <div class="flex flex-wrap items-center justify-between gap-2">
-                          <span class="text-xl font-bold">Requested Documents</span>
-                        </div>
-                      </template>
-                      <Column field="name" header="Name"></Column>
-                      <Column field="mandatory" header="Mandatory"></Column>
-                      <Column field="specificDate" header="Specific Date"></Column>
-                      <Column field="desc" header="Description"></Column>
-                      <template #footer>
-                        In total there are
-                        {{ requestedDocuments ? requestedDocuments.length : 0 }} documents.
-                      </template>
-                    </DataTable>
+                    <DocumentsDatatable
+                      :documents="requestedDocuments"
+                      :canDelete="true"
+                      @remove-document="removeDocument"
+                    />
                     <Divider />
                     <div class="flex flex-auto justify-center items-center">
                       <Form
@@ -137,19 +52,22 @@
                               id="documentName"
                               placeholder="Enter request name"
                               fluid
+                              aria-label="Document Name"
                             />
+                            <Message
+                              v-if="errors.document.name"
+                              severity="error"
+                              size="small"
+                              variant="simple"
+                              >{{ errors.document.name }}</Message
+                            >
                           </FloatLabel>
                         </div>
                         <div class="flex flex-col pt-4">
                           <label for="mandatoryDocument"> Mandatory </label>
                           <ToggleSwitch name="mandatory" id="mandatory" fluid>
-                            <template #handle="{ checked }">
-                              <i
-                                :class="[
-                                  '!text-xs pi',
-                                  { 'pi-check': checked, 'pi-times': !checked },
-                                ]"
-                              />
+                            <template #handle>
+                              <i />
                             </template>
                           </ToggleSwitch>
                         </div>
@@ -164,7 +82,15 @@
                               iconDisplay="Expected Date"
                               showButtonBar
                               placeholder="Enter Expected Date"
+                              aria-label="Specific Expected Date"
                             />
+                            <Message
+                              v-if="errors.document.specificDate"
+                              severity="error"
+                              size="small"
+                              variant="simple"
+                              >{{ errors.document.specificDate }}</Message
+                            >
                           </FloatLabel>
                         </div>
                         <div class="flex flex-col pt-4">
@@ -176,6 +102,7 @@
                               rows="5"
                               placeholder="Enter document description"
                               fluid
+                              aria-label="Document Description"
                             />
                           </FloatLabel>
                         </div>
@@ -187,20 +114,20 @@
                       </Form>
                     </div>
                   </div>
-                </div>
-                <div class="flex pt-6 justify-between">
-                  <Button
-                    label="Back"
-                    severity="secondary"
-                    icon="pi pi-arrow-left"
-                    @click="activateCallback('1')"
-                  />
-                  <Button
-                    label="Next"
-                    icon="pi pi-arrow-right"
-                    iconPos="right"
-                    @click="activateCallback('3')"
-                  />
+                  <div class="flex pt-6 justify-between">
+                    <Button
+                      label="Back"
+                      severity="secondary"
+                      icon="pi pi-arrow-left"
+                      @click="activateCallback('1')"
+                    />
+                    <Button
+                      label="Next"
+                      icon="pi pi-arrow-right"
+                      iconPos="right"
+                      @click="activateCallback('3')"
+                    />
+                  </div>
                 </div>
               </StepPanel>
               <StepPanel v-slot="{ activateCallback }" value="3">
@@ -259,16 +186,7 @@
                       <div class="flex items-center gap-2">
                         <span class="font-bold font-large">Requested Documents</span>
                       </div>
-                      <DataTable :value="requestedDocuments" tableStyle="min-width: 50rem">
-                        <Column field="name" header="Name"></Column>
-                        <Column field="mandatory" header="Mandatory"></Column>
-                        <Column field="specificDate" header="Specific Date"></Column>
-                        <Column field="desc" header="Description"></Column>
-                        <template #footer>
-                          In total there are
-                          {{ requestedDocuments ? requestedDocuments.length : 0 }} documents.
-                        </template>
-                      </DataTable>
+                      <DocumentsDatatable :documents="requestedDocuments" :canDelete="false" />
                     </Panel>
                   </div>
                 </div>
@@ -279,12 +197,14 @@
                     icon="pi pi-arrow-left"
                     @click="activateCallback('2')"
                   />
-                  <Button label="Send Request" iconPos="right" @click="sendRequest()" />
+                  <Button label="Send Request" iconPos="right" @click="confirmSendRequest()" />
+                  <ConfirmDialog></ConfirmDialog>
                 </div>
               </StepPanel>
             </StepPanels>
           </Stepper>
           <ProgressSpinner v-if="creating" />
+          <Toast />
         </div>
       </div>
     </main>
@@ -305,28 +225,30 @@ import {
   DatePicker,
   InputText,
   Message,
-  Chip,
-  Fieldset,
   Textarea,
-  DataTable,
-  Column,
   Divider,
+  Toast,
   ToggleSwitch,
   Panel,
   Fluid,
   ProgressSpinner,
+  ConfirmDialog,
 } from 'primevue'
 import { Form } from '@primevue/forms'
 import { ref } from 'vue'
-import TheMenubar from '../components/TheMenubar.vue'
-import TheFooter from '../components/TheFooter.vue'
+import TheMenubar from '@/components/TheMenubar.vue'
+import TheFooter from '@/components/TheFooter.vue'
+import DocumentsDatatable from '@/components/DocumentsDatatable.vue'
+import RequestDetailsStep from '../components/RequestDetailsStep.vue'
 import { useRouter } from 'vue-router'
 import { requestsStore } from '@/stores/requests'
 import { useToast } from 'primevue/usetoast'
+import { useConfirm } from 'primevue/useconfirm'
 
 const requestsStoreSession = requestsStore()
 const router = useRouter()
 const toast = useToast()
+const confirm = useConfirm()
 
 const creating = ref(false)
 // New request form
@@ -339,11 +261,49 @@ const newRequest = ref({
 const clientEmail = ref('')
 const requestedDocuments = ref([])
 
+// Confirmation dialog before sending request
+const confirmSendRequest = () => {
+  confirm.require({
+    message: 'Are you sure you want to send this request?',
+    header: 'Confirm Send',
+    icon: 'pi pi-exclamation-triangle',
+    accept: sendRequest,
+    reject: () => {},
+  })
+}
+
+// Validation state
+const errors = ref({
+  name: '',
+  expected_date: '',
+  client_email: '',
+  clientEmailInput: '',
+  description: '',
+  document: {
+    name: '',
+    specificDate: '',
+    desc: '',
+  },
+})
+
 const insertEmailToChip = () => {
-  if (clientEmail.value) {
-    newRequest.value.client_email.push({ email: clientEmail.value })
-    clientEmail.value = ''
+  // Email format validation
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+  if (!clientEmail.value) {
+    errors.value.clientEmailInput = 'Email is required.'
+    return
   }
+  if (!emailRegex.test(clientEmail.value)) {
+    errors.value.clientEmailInput = 'Invalid email format.'
+    return
+  }
+  if (newRequest.value.client_email.some((e) => e.email === clientEmail.value)) {
+    errors.value.clientEmailInput = 'Email already added.'
+    return
+  }
+  newRequest.value.client_email.push({ email: clientEmail.value })
+  clientEmail.value = ''
+  errors.value.clientEmailInput = ''
 }
 
 const removeClientEmail = (email) => {
@@ -357,35 +317,76 @@ const displayClientEmails = (emailList) => {
 }
 
 const addDocumentToDatatable = (e) => {
-  if (e.states) {
-    const mandatoryStatus = e.states.mandatory.value ? e.states.mandatory.value : false
-    requestedDocuments.value.push({
-      name: e.states.name.value,
-      mandatory: mandatoryStatus,
-      specificDate: e.states.specificDate.value,
-      desc: e.states.desc.value,
-    })
-    e.reset()
+  errors.value.document.name = ''
+  errors.value.document.specificDate = ''
+  // Validate document name
+  if (!e.states.name.value) {
+    errors.value.document.name = 'Document name is required.'
+    return
   }
+  // Validate specific date (optional, but if present, must be valid)
+  // Add more date validation if needed
+  requestedDocuments.value.push({
+    name: e.states.name.value,
+    mandatory: e.states.mandatory.value ? e.states.mandatory.value : false,
+    specificDate: e.states.specificDate.value,
+    desc: e.states.desc.value,
+  })
+  e.reset()
+}
+
+const removeDocument = (index) => {
+  requestedDocuments.value.splice(index, 1)
 }
 
 const sendRequest = async () => {
-  // Logic to send the request
+  // Validate all required fields before sending
+  errors.value.name = newRequest.value.name ? '' : 'Request name is required.'
+  errors.value.expected_date = newRequest.value.expected_date ? '' : 'Expected date is required.'
+  errors.value.client_email = newRequest.value.client_email.length
+    ? ''
+    : 'At least one client email is required.'
+  if (errors.value.name || errors.value.expected_date || errors.value.client_email) {
+    // Gather all error messages
+    const errorMessages = []
+    if (errors.value.name) errorMessages.push(errors.value.name)
+    if (errors.value.expected_date) errorMessages.push(errors.value.expected_date)
+    if (errors.value.client_email) errorMessages.push(errors.value.client_email)
+    if (errors.value.clientEmailInput) errorMessages.push(errors.value.clientEmailInput)
+    if (errors.value.description) errorMessages.push(errors.value.description)
+    // Document errors
+    if (errors.value.document) {
+      Object.values(errors.value.document).forEach((msg) => {
+        if (msg) errorMessages.push(msg)
+      })
+    }
+    const allErrors = errorMessages.join('\n')
+    console.log('Form submission errors:', allErrors)
+    toast.add({
+      severity: 'error',
+      summary: 'Error in the form submission',
+      detail: allErrors,
+      life: 8000,
+    })
+    return
+  }
   creating.value = true
   try {
     await requestsStoreSession.createNewRequest(newRequest, requestedDocuments)
     toast.add({
-      title: 'Success',
-      description: 'Request successfully sent !',
-      color: 'green',
+      severity: 'success',
+      summary: 'Success in sending request',
+      detail: 'Request successfully sent !',
+      life: 8000,
     })
     router.push({ name: 'home' })
   } catch (e) {
     console.error('Error on sending request', e)
     toast.add({
-      title: 'Error',
-      description: 'Request not successfully sent :(',
-      color: 'red',
+      severity: 'error',
+      summary: 'Error in sending request',
+      detail: 'Request not successfully sent :(',
+      life: 8000,
     })
   } finally {
     creating.value = false
