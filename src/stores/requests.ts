@@ -1,0 +1,243 @@
+import { computed, ref } from 'vue'
+import { defineStore } from 'pinia'
+import type { RealtimeChannel } from '@supabase/supabase-js'
+import { FILES_BUCKET, supabase } from '@/lib/supabase'
+import { useAuthStore } from '@/stores/auth'
+import type { DocumentRequest, RequestItemDraft, RequestPriority, RequestStatus, UploadedFile } from '@/types'
+import { STATUS_LABELS } from '@/types'
+
+export interface RequestInput {
+  name: string
+  description: string
+  priority: RequestPriority
+  client_name: string
+  client_company: string
+  client_email: string
+  client_phone: string
+  expected_date: string | null
+  status?: RequestStatus
+  items: RequestItemDraft[]
+}
+
+const REQUEST_SELECT = '*, request_items(*, uploaded_files(*))'
+
+export const useRequestsStore = defineStore('requests', () => {
+  const requests = ref<DocumentRequest[]>([])
+  const loading = ref(false)
+
+  let channel: RealtimeChannel | null = null
+  let refetchTimer: ReturnType<typeof setTimeout> | null = null
+
+  const stats = computed(() => ({
+    pending: requests.value.filter((r) => r.status === 'pending').length,
+    completed: requests.value.filter((r) => r.status === 'completed').length,
+    awaitingClient: requests.value.filter((r) => r.status === 'awaiting_client').length,
+    expired: requests.value.filter((r) => r.status === 'expired').length,
+  }))
+
+  const storageBytes = computed(() =>
+    requests.value
+      .flatMap((r) => r.request_items ?? [])
+      .flatMap((i) => i.uploaded_files ?? [])
+      .reduce((sum, f) => sum + (f.file_size ?? 0), 0),
+  )
+
+  async function fetchAll() {
+    loading.value = true
+    try {
+      const { data, error } = await supabase
+        .from('document_requests')
+        .select(REQUEST_SELECT)
+        .order('created_at', { ascending: false })
+      if (error) throw error
+      for (const request of data ?? []) {
+        request.request_items?.sort((a: { position: number }, b: { position: number }) => a.position - b.position)
+      }
+      requests.value = data ?? []
+    } finally {
+      loading.value = false
+    }
+  }
+
+  async function createRequest(input: RequestInput): Promise<DocumentRequest> {
+    const auth = useAuthStore()
+    const { data: request, error } = await supabase
+      .from('document_requests')
+      .insert({
+        user_id: auth.user!.id,
+        name: input.name,
+        description: input.description,
+        priority: input.priority,
+        client_name: input.client_name,
+        client_company: input.client_company,
+        client_email: input.client_email,
+        client_phone: input.client_phone,
+        expected_date: input.expected_date,
+      })
+      .select()
+      .single()
+    if (error) throw error
+
+    if (input.items.length > 0) {
+      const { error: itemsError } = await supabase.from('request_items').insert(
+        input.items.map((item, index) => ({
+          request_id: request.id,
+          title: item.title,
+          description: item.description,
+          category: item.category ?? '',
+          position: index,
+        })),
+      )
+      if (itemsError) throw itemsError
+    }
+
+    await logActivity(request.id, 'created', `New request created: ${input.name}`)
+    await fetchAll()
+    return request
+  }
+
+  async function updateRequest(id: string, input: RequestInput) {
+    const { error } = await supabase
+      .from('document_requests')
+      .update({
+        name: input.name,
+        description: input.description,
+        priority: input.priority,
+        client_name: input.client_name,
+        client_company: input.client_company,
+        client_email: input.client_email,
+        client_phone: input.client_phone,
+        expected_date: input.expected_date,
+        ...(input.status ? { status: input.status } : {}),
+      })
+      .eq('id', id)
+    if (error) throw error
+
+    // Reconcile checklist items: delete removed, update kept, insert new.
+    const existing = requests.value.find((r) => r.id === id)?.request_items ?? []
+    const keptIds = new Set(input.items.filter((i) => i.id).map((i) => i.id))
+    const removed = existing.filter((i) => !keptIds.has(i.id)).map((i) => i.id)
+    if (removed.length > 0) {
+      const { error: delError } = await supabase.from('request_items').delete().in('id', removed)
+      if (delError) throw delError
+    }
+    for (const [index, item] of input.items.entries()) {
+      if (item.id) {
+        const { error: upError } = await supabase
+          .from('request_items')
+          .update({ title: item.title, description: item.description, position: index })
+          .eq('id', item.id)
+        if (upError) throw upError
+      } else {
+        const { error: insError } = await supabase.from('request_items').insert({
+          request_id: id,
+          title: item.title,
+          description: item.description,
+          category: item.category ?? '',
+          position: index,
+        })
+        if (insError) throw insError
+      }
+    }
+    await fetchAll()
+  }
+
+  /** Quick status change (e.g. mark completed from the detail page) with an activity trail. */
+  async function setStatus(id: string, status: RequestStatus) {
+    const { error } = await supabase.from('document_requests').update({ status }).eq('id', id)
+    if (error) throw error
+    const name = requests.value.find((r) => r.id === id)?.name ?? 'Request'
+    await logActivity(
+      id,
+      status === 'completed' ? 'completed' : 'info',
+      `${name} marked as ${STATUS_LABELS[status]}`,
+    )
+    await fetchAll()
+  }
+
+  async function deleteRequest(id: string) {
+    const { error } = await supabase.from('document_requests').delete().eq('id', id)
+    if (error) throw error
+    requests.value = requests.value.filter((r) => r.id !== id)
+  }
+
+  /** Records a reminder in the activity log (email delivery is a follow-up integration). */
+  async function sendReminder(request: DocumentRequest) {
+    const client = request.client_name || request.client_email
+    await logActivity(request.id, 'reminder', `Reminder sent to ${client}`)
+  }
+
+  async function logActivity(requestId: string | null, type: string, message: string) {
+    const auth = useAuthStore()
+    if (!auth.user) return
+    const { error } = await supabase
+      .from('activity_events')
+      .insert({ user_id: auth.user.id, request_id: requestId, type, message })
+    if (error) throw error
+  }
+
+  /** Creates a short-lived signed URL for one file and triggers the download. */
+  async function downloadFile(file: UploadedFile) {
+    const { data, error } = await supabase.storage
+      .from(FILES_BUCKET)
+      .createSignedUrl(file.storage_path, 120, { download: file.file_name })
+    if (error) throw error
+    const link = document.createElement('a')
+    link.href = data.signedUrl
+    link.download = file.file_name
+    link.click()
+  }
+
+  /** Downloads every uploaded file of a request. */
+  async function downloadFiles(request: DocumentRequest): Promise<number> {
+    const files = (request.request_items ?? []).flatMap((i) => i.uploaded_files ?? [])
+    for (const file of files) {
+      await downloadFile(file)
+    }
+    return files.length
+  }
+
+  function portalLink(request: DocumentRequest): string {
+    return `${window.location.origin}/portal/${request.portal_token}`
+  }
+
+  /** Live-refresh the table when requests, items, or files change server-side. */
+  function subscribe() {
+    if (channel) return
+    const scheduleRefetch = () => {
+      if (refetchTimer) clearTimeout(refetchTimer)
+      refetchTimer = setTimeout(() => fetchAll(), 250)
+    }
+    channel = supabase
+      .channel('dashboard-live')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'document_requests' }, scheduleRefetch)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'request_items' }, scheduleRefetch)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'uploaded_files' }, scheduleRefetch)
+      .subscribe()
+  }
+
+  function unsubscribe() {
+    if (channel) {
+      supabase.removeChannel(channel)
+      channel = null
+    }
+  }
+
+  return {
+    requests,
+    loading,
+    stats,
+    storageBytes,
+    fetchAll,
+    createRequest,
+    updateRequest,
+    setStatus,
+    deleteRequest,
+    sendReminder,
+    downloadFile,
+    downloadFiles,
+    portalLink,
+    subscribe,
+    unsubscribe,
+  }
+})

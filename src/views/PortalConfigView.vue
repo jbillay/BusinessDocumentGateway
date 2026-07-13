@@ -1,0 +1,538 @@
+<script setup lang="ts">
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
+import { useToast } from 'primevue/usetoast'
+import Button from 'primevue/button'
+import InputText from 'primevue/inputtext'
+import Textarea from 'primevue/textarea'
+import ToggleSwitch from 'primevue/toggleswitch'
+import Select from 'primevue/select'
+import AppNavbar from '@/components/layout/AppNavbar.vue'
+import AppFooter from '@/components/layout/AppFooter.vue'
+import BrandLogo from '@/components/brand/BrandLogo.vue'
+import { brandingUrl } from '@/lib/supabase'
+import { usePortalSettingsStore, type PortalSettingsInput } from '@/stores/portalSettings'
+import { LINK_EXPIRY_OPTIONS, PORTAL_SETTINGS_DEFAULTS } from '@/types'
+
+const router = useRouter()
+const toast = useToast()
+const store = usePortalSettingsStore()
+
+const form = reactive<PortalSettingsInput>({ ...PORTAL_SETTINGS_DEFAULTS })
+const errors = reactive<{ pin?: string; logo?: string }>({})
+const saving = ref(false)
+
+const logoInput = ref<HTMLInputElement | null>(null)
+const pendingLogo = ref<File | null>(null)
+const pendingLogoUrl = ref<string | null>(null)
+
+const HEX_RE = /^#[0-9a-fA-F]{6}$/
+const MAX_LOGO_SIZE = 2 * 1024 * 1024
+
+function resetForm() {
+  const s = store.settings
+  Object.assign(form, s ? { ...s } : { ...PORTAL_SETTINGS_DEFAULTS })
+  clearPendingLogo()
+  errors.pin = undefined
+  errors.logo = undefined
+}
+
+watch(() => store.settings, resetForm)
+onMounted(() => store.load())
+onBeforeUnmount(clearPendingLogo)
+
+function clearPendingLogo() {
+  if (pendingLogoUrl.value) URL.revokeObjectURL(pendingLogoUrl.value)
+  pendingLogo.value = null
+  pendingLogoUrl.value = null
+}
+
+const logoPreview = computed(() => pendingLogoUrl.value ?? brandingUrl(form.logo_path))
+
+function onLogoPicked(event: Event) {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  input.value = ''
+  if (!file) return
+  if (!/\.(png|svg)$/i.test(file.name)) {
+    errors.logo = 'Please choose a PNG or SVG file.'
+    return
+  }
+  if (file.size > MAX_LOGO_SIZE) {
+    errors.logo = 'Logo must be 2MB or smaller.'
+    return
+  }
+  errors.logo = undefined
+  clearPendingLogo()
+  pendingLogo.value = file
+  pendingLogoUrl.value = URL.createObjectURL(file)
+}
+
+function removeLogo() {
+  clearPendingLogo()
+  form.logo_path = null
+  errors.logo = undefined
+}
+
+/** Keeps the swatch and hex field in sync while tolerating partial typing. */
+function safeColor(value: string, fallback: string): string {
+  return HEX_RE.test(value) ? value : fallback
+}
+
+const previewPrimary = computed(() => safeColor(form.primary_color, PORTAL_SETTINGS_DEFAULTS.primary_color))
+const previewAccent = computed(() => safeColor(form.accent_color, PORTAL_SETTINGS_DEFAULTS.accent_color))
+
+/** Bridges the Select (0 = never) to the stored value (null = never). */
+const expiryModel = computed({
+  get: () => form.link_expiry_days ?? 0,
+  set: (v: number) => {
+    form.link_expiry_days = v === 0 ? null : v
+  },
+})
+
+const expiryLabel = computed(
+  () => LINK_EXPIRY_OPTIONS.find((o) => o.value === (form.link_expiry_days ?? 0))?.label ?? 'Never',
+)
+
+function cancel() {
+  resetForm()
+  router.push({ name: 'dashboard' })
+}
+
+async function save() {
+  errors.pin =
+    form.password_protected && !(form.portal_pin ?? '').trim()
+      ? 'Set a PIN or password, or turn protection off.'
+      : undefined
+  if (errors.pin) return
+
+  saving.value = true
+  try {
+    const previousLogo = store.settings?.logo_path ?? null
+    if (pendingLogo.value) {
+      form.logo_path = await store.uploadLogo(pendingLogo.value)
+    }
+    await store.save({
+      ...form,
+      primary_color: previewPrimary.value,
+      accent_color: previewAccent.value,
+      portal_pin: form.password_protected ? (form.portal_pin ?? '').trim() : form.portal_pin,
+    })
+    if (previousLogo && previousLogo !== form.logo_path) await store.deleteLogo(previousLogo)
+    clearPendingLogo()
+    toast.add({ severity: 'success', summary: 'Portal settings saved', life: 3000 })
+  } catch (error) {
+    toast.add({
+      severity: 'error',
+      summary: 'Save failed',
+      detail: error instanceof Error ? error.message : undefined,
+      life: 5000,
+    })
+  } finally {
+    saving.value = false
+  }
+}
+</script>
+
+<template>
+  <div class="config-page">
+    <AppNavbar />
+
+    <main class="config-page__main">
+      <div class="config-header">
+        <div>
+          <h1 class="config-header__title">Portal Configuration</h1>
+          <p class="config-header__subtitle">Customize the client upload experience.</p>
+        </div>
+        <div class="config-header__actions">
+          <Button label="Cancel" severity="secondary" outlined :disabled="saving" @click="cancel" />
+          <Button label="Save Changes" severity="contrast" :loading="saving" @click="save" />
+        </div>
+      </div>
+
+      <div class="config-layout">
+        <div class="config-forms">
+          <!-- Brand Identity -->
+          <section class="bdg-card config-card">
+            <div class="config-card__header">
+              <span class="config-card__icon" style="background: #eef2ff; color: #4f46e5"><i class="pi pi-palette" /></span>
+              <h2>Brand Identity</h2>
+            </div>
+
+            <div class="bdg-field">
+              <label>Portal Logo</label>
+              <div class="logo-row">
+                <span class="logo-thumb">
+                  <img v-if="logoPreview" :src="logoPreview" alt="Portal logo preview" />
+                  <i v-else class="pi pi-image" />
+                </span>
+                <Button label="Upload Image" icon="pi pi-upload" outlined @click="logoInput?.click()" />
+                <Button
+                  v-if="logoPreview"
+                  label="Remove"
+                  text
+                  severity="secondary"
+                  @click="removeLogo"
+                />
+                <span class="logo-hint">PNG or SVG, max 2MB</span>
+              </div>
+              <small v-if="errors.logo" class="p-error">{{ errors.logo }}</small>
+              <input ref="logoInput" type="file" accept=".png,.svg" class="hidden" @change="onLogoPicked" />
+            </div>
+
+            <div class="formgrid grid">
+              <div class="bdg-field col-12 md:col-6">
+                <label for="primaryColor">Primary Brand Color</label>
+                <div class="color-field">
+                  <input type="color" :value="previewPrimary" @input="form.primary_color = ($event.target as HTMLInputElement).value" aria-label="Primary brand color" />
+                  <InputText id="primaryColor" v-model="form.primary_color" maxlength="7" />
+                </div>
+              </div>
+              <div class="bdg-field col-12 md:col-6">
+                <label for="accentColor">Accent Color</label>
+                <div class="color-field">
+                  <input type="color" :value="previewAccent" @input="form.accent_color = ($event.target as HTMLInputElement).value" aria-label="Accent color" />
+                  <InputText id="accentColor" v-model="form.accent_color" maxlength="7" />
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- Welcome Content -->
+          <section class="bdg-card config-card">
+            <div class="config-card__header">
+              <span class="config-card__icon" style="background: #eff6ff; color: var(--bdg-blue)"><i class="pi pi-file-edit" /></span>
+              <h2>Welcome Content</h2>
+            </div>
+
+            <div class="bdg-field">
+              <label for="headline">Headline</label>
+              <InputText id="headline" v-model="form.headline" maxlength="80" />
+            </div>
+            <div class="bdg-field" style="margin-bottom: 0">
+              <label for="welcomeMessage">Welcome Message</label>
+              <Textarea id="welcomeMessage" v-model="form.welcome_message" rows="3" auto-resize maxlength="500" style="width: 100%" />
+            </div>
+          </section>
+
+          <!-- Security & Access -->
+          <section class="bdg-card config-card">
+            <div class="config-card__header">
+              <span class="config-card__icon" style="background: #fef2f2; color: #dc2626"><i class="pi pi-lock" /></span>
+              <h2>Security &amp; Access</h2>
+            </div>
+
+            <div class="setting-row">
+              <div>
+                <div class="setting-row__title">Password Protection</div>
+                <div class="setting-row__desc">Require a PIN or password to access the upload portal.</div>
+              </div>
+              <ToggleSwitch v-model="form.password_protected" aria-label="Password protection" />
+            </div>
+
+            <div v-if="form.password_protected" class="bdg-field setting-pin">
+              <label for="portalPin">Portal PIN / password</label>
+              <InputText
+                id="portalPin"
+                :model-value="form.portal_pin ?? ''"
+                placeholder="e.g. 4821 or a passphrase"
+                maxlength="64"
+                :invalid="!!errors.pin"
+                @update:model-value="form.portal_pin = $event ?? ''"
+              />
+              <small v-if="errors.pin" class="p-error">{{ errors.pin }}</small>
+              <small v-else class="setting-row__desc">Share this code with your client — they'll need it to open the link.</small>
+            </div>
+
+            <div class="setting-row setting-row--last">
+              <div>
+                <div class="setting-row__title">Link Expiry</div>
+                <div class="setting-row__desc">Automatically disable the portal link after a set duration.</div>
+              </div>
+              <Select
+                v-model="expiryModel"
+                :options="LINK_EXPIRY_OPTIONS"
+                option-label="label"
+                option-value="value"
+                class="expiry-select"
+                aria-label="Link expiry"
+              />
+            </div>
+          </section>
+        </div>
+
+        <!-- Live preview -->
+        <aside class="config-preview">
+          <div class="config-preview__label bdg-label-sm"><i class="pi pi-eye" /> Live Preview</div>
+          <div class="preview-frame bdg-card">
+            <div class="preview-frame__logo">
+              <img v-if="logoPreview" :src="logoPreview" alt="" />
+              <BrandLogo v-else :size="22" :wordmark="false" />
+            </div>
+            <h3 class="preview-frame__headline" :style="{ color: previewPrimary }">
+              {{ form.headline || 'Secure Document Upload' }}
+            </h3>
+            <p class="preview-frame__message">{{ form.welcome_message }}</p>
+            <div class="preview-frame__dropzone" :style="{ borderColor: previewAccent, color: previewAccent }">
+              <i class="pi pi-cloud-upload" />
+              <span class="preview-frame__drop-title">Drag &amp; Drop files here</span>
+              <span class="preview-frame__drop-sub">or click to browse</span>
+            </div>
+            <button class="preview-frame__submit" :style="{ background: previewPrimary }" type="button" disabled>
+              Submit Documents
+            </button>
+            <div class="preview-frame__meta">
+              <span v-if="form.password_protected"><i class="pi pi-lock" /> PIN required</span>
+              <span><i class="pi pi-clock" /> Link expiry: {{ expiryLabel }}</span>
+            </div>
+          </div>
+        </aside>
+      </div>
+    </main>
+
+    <AppFooter />
+  </div>
+</template>
+
+<style scoped>
+.config-page {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+.config-page__main {
+  flex: 1;
+  width: 100%;
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 1.5rem;
+}
+.config-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 1.5rem;
+}
+.config-header__title {
+  margin: 0;
+  font-size: 1.75rem;
+}
+.config-header__subtitle {
+  margin: 0.25rem 0 0;
+  color: #64748b;
+}
+.config-header__actions {
+  display: flex;
+  gap: 0.5rem;
+}
+.config-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  gap: 1.5rem;
+  align-items: start;
+}
+.config-forms {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  min-width: 0;
+}
+.config-card {
+  padding: 1.5rem;
+}
+.config-card__header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1.25rem;
+}
+.config-card__header h2 {
+  margin: 0;
+  font-size: 1.2rem;
+}
+.config-card__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 0.75rem;
+  font-size: 1rem;
+}
+.logo-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+.logo-thumb {
+  width: 3.5rem;
+  height: 3.5rem;
+  border-radius: 0.75rem;
+  border: 1px dashed var(--bdg-border);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #94a3b8;
+  overflow: hidden;
+  background: #f8fafc;
+  flex-shrink: 0;
+}
+.logo-thumb img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+.logo-hint {
+  color: #94a3b8;
+  font-size: 0.875rem;
+}
+.color-field {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.color-field input[type='color'] {
+  width: 2.25rem;
+  height: 2.25rem;
+  padding: 0;
+  border: 1px solid var(--bdg-border);
+  border-radius: 0.5rem;
+  background: none;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.color-field .p-inputtext {
+  flex: 1;
+}
+.setting-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem;
+  border: 1px solid var(--bdg-border);
+  border-radius: 0.875rem;
+}
+.setting-row + .bdg-field,
+.setting-row + .setting-row {
+  margin-top: 0.875rem;
+}
+.setting-row--last {
+  margin-top: 0.875rem;
+}
+.setting-row__title {
+  font-weight: 600;
+}
+.setting-row__desc {
+  color: #64748b;
+  font-size: 0.875rem;
+  margin-top: 0.125rem;
+}
+.setting-pin {
+  margin: 0.875rem 0 0;
+  padding: 0 0.25rem;
+}
+.expiry-select {
+  min-width: 8rem;
+}
+/* Live preview */
+.config-preview {
+  position: sticky;
+  top: 5rem;
+}
+.config-preview__label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-bottom: 0.75rem;
+}
+.preview-frame {
+  padding: 1.5rem 1.25rem;
+  border-radius: 1.5rem;
+  text-align: center;
+}
+.preview-frame__logo {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 0.875rem;
+  min-height: 1.5rem;
+}
+.preview-frame__logo img {
+  max-height: 2rem;
+  max-width: 70%;
+  object-fit: contain;
+}
+.preview-frame__headline {
+  margin: 0 0 0.5rem;
+  font-size: 1.25rem;
+  line-height: 1.3;
+}
+.preview-frame__message {
+  margin: 0 0 1.25rem;
+  color: #64748b;
+  font-size: 0.82rem;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+.preview-frame__dropzone {
+  border: 2px dashed;
+  border-radius: 1rem;
+  padding: 1.75rem 1rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+  background: rgba(59, 130, 246, 0.04);
+  margin-bottom: 1.25rem;
+}
+.preview-frame__dropzone .pi {
+  font-size: 1.5rem;
+  margin-bottom: 0.25rem;
+}
+.preview-frame__drop-title {
+  font-weight: 600;
+  font-size: 0.875rem;
+}
+.preview-frame__drop-sub {
+  color: #64748b;
+  font-size: 0.8rem;
+}
+.preview-frame__submit {
+  width: 100%;
+  border: none;
+  border-radius: 0.625rem;
+  color: #ffffff;
+  font-weight: 600;
+  font-family: inherit;
+  font-size: 0.9rem;
+  padding: 0.7rem 1rem;
+  opacity: 0.92;
+}
+.preview-frame__meta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  margin-top: 1rem;
+  color: #94a3b8;
+  font-size: 0.78rem;
+}
+.preview-frame__meta .pi {
+  font-size: 0.75rem;
+  margin-right: 0.3rem;
+}
+.hidden {
+  display: none;
+}
+@media (max-width: 900px) {
+  .config-layout {
+    grid-template-columns: 1fr;
+  }
+  .config-preview {
+    position: static;
+    max-width: 24rem;
+  }
+}
+</style>
