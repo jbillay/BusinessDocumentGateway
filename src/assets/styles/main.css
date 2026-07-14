@@ -40,17 +40,21 @@ h3 {
   color: var(--bdg-deep);
 }
 
-/* Page transitions */
-.fade-enter-active,
-.fade-leave-active {
-  transition: opacity 0.18s ease, transform 0.18s ease;
+/* Page-enter animation (CSS-only; see App.vue for why no <transition> is used) */
+@media (prefers-reduced-motion: no-preference) {
+  #app > *:not(.p-toast):not(.p-confirmdialog) {
+    animation: bdg-page-in 0.18s ease;
+  }
 }
-.fade-enter-from {
-  opacity: 0;
-  transform: translateY(6px);
-}
-.fade-leave-to {
-  opacity: 0;
+@keyframes bdg-page-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 
 /* Elevated white card on the off-white canvas (Level 1) */
