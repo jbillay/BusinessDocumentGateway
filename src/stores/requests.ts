@@ -168,10 +168,21 @@ export const useRequestsStore = defineStore('requests', () => {
     requests.value = requests.value.filter((r) => r.id !== id)
   }
 
-  /** Records a reminder in the activity log (email delivery is a follow-up integration). */
+  /** Invokes the send-email edge function; it logs the activity event itself. */
+  async function sendEmail(
+    type: 'request_created' | 'reminder' | 'completed' | 'link_regenerated',
+    requestId: string,
+  ) {
+    const { data, error } = await supabase.functions.invoke('send-email', {
+      body: { type, request_id: requestId },
+    })
+    if (error) throw error
+    return data as { sent: boolean; to: string }
+  }
+
+  /** Sends a reminder email to the client through the edge function. */
   async function sendReminder(request: DocumentRequest) {
-    const client = request.client_name || request.client_email
-    await logActivity(request.id, 'reminder', `Reminder sent to ${client}`)
+    return sendEmail('reminder', request.id)
   }
 
   async function logActivity(requestId: string | null, type: string, message: string) {
@@ -215,14 +226,23 @@ export const useRequestsStore = defineStore('requests', () => {
     await fetchAll()
   }
 
-  /** Issues a fresh portal token (the old link dies) with a new expiry; null/0 days = never expires. */
-  async function regeneratePortalLink(id: string, expiryDays: number | null) {
+  /**
+   * Issues a fresh portal token (the old link dies) with a new expiry; null/0 days = never expires.
+   * Returns whether the new link was also emailed to the client.
+   */
+  async function regeneratePortalLink(id: string, expiryDays: number | null): Promise<{ emailSent: boolean }> {
     const { error } = await supabase.rpc('regenerate_portal_link', {
       p_request_id: id,
       p_expiry_days: expiryDays && expiryDays > 0 ? expiryDays : null,
     })
     if (error) throw error
     await fetchAll()
+    try {
+      await sendEmail('link_regenerated', id)
+      return { emailSent: true }
+    } catch {
+      return { emailSent: false }
+    }
   }
 
   /** Live-refresh the table when requests, items, or files change server-side. */
@@ -257,6 +277,7 @@ export const useRequestsStore = defineStore('requests', () => {
     updateRequest,
     setStatus,
     deleteRequest,
+    sendEmail,
     sendReminder,
     downloadFile,
     downloadFiles,

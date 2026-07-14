@@ -228,11 +228,18 @@ async function send() {
     })
     const link = `${window.location.origin}/portal/${request.portal_token}`
     await navigator.clipboard.writeText(link).catch(() => {})
+    let emailNote = ''
+    try {
+      const result = await requestsStore.sendEmail('request_created', request.id)
+      emailNote = ` The client was notified at ${result.to}.`
+    } catch {
+      emailNote = ' The notification email could not be sent — share the copied link manually.'
+    }
     toast.add({
       severity: 'success',
       summary: 'Request sent',
-      detail: 'The client portal link was copied to your clipboard.',
-      life: 5000,
+      detail: `The client portal link was copied to your clipboard.${emailNote}`,
+      life: 6000,
     })
     router.push({ name: 'dashboard' })
   } catch (error) {

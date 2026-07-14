@@ -165,12 +165,14 @@ async function regenerateLink() {
   if (!req) return
   regenerating.value = true
   try {
-    await requestsStore.regeneratePortalLink(req.id, regenDays.value)
+    const { emailSent } = await requestsStore.regeneratePortalLink(req.id, regenDays.value)
     regenDialog.value = false
     toast.add({
       severity: 'success',
       summary: 'New link generated',
-      detail: 'The old link no longer works. Copy the new link and share it with your client.',
+      detail: emailSent
+        ? 'The old link no longer works. The new link was emailed to your client.'
+        : 'The old link no longer works. The email could not be sent — copy the new link and share it manually.',
       life: 6000,
     })
   } catch (error) {
@@ -245,15 +247,20 @@ function openPortal() {
 async function remind() {
   if (!request.value) return
   try {
-    await requestsStore.sendReminder(request.value)
+    const result = await requestsStore.sendReminder(request.value)
     toast.add({
       severity: 'success',
-      summary: 'Reminder logged',
-      detail: `Reminder for ${request.value.client_name || request.value.client_email} added to the activity log.`,
+      summary: 'Reminder sent',
+      detail: `A reminder email was sent to ${result.to}.`,
       life: 4000,
     })
   } catch (error) {
-    toast.add({ severity: 'error', summary: 'Reminder failed', detail: error instanceof Error ? error.message : undefined, life: 5000 })
+    toast.add({
+      severity: 'error',
+      summary: 'Reminder failed',
+      detail: error instanceof Error ? error.message : 'The email could not be delivered.',
+      life: 5000,
+    })
   }
 }
 
@@ -563,7 +570,7 @@ function confirmDelete() {
     <Dialog v-model:visible="regenDialog" modal header="Generate New Link" :style="{ width: '26rem', maxWidth: '95vw' }">
       <p class="secdlg-warning">
         <i class="pi pi-exclamation-triangle" />
-        The current link stops working immediately. You'll need to share the new link with your client.
+        The current link stops working immediately. The new link is emailed to your client automatically.
       </p>
       <div class="bdg-field">
         <label for="regen-expiry">New link is valid for</label>
