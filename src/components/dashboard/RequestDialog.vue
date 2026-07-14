@@ -211,8 +211,8 @@ function submit() {
         text
         rounded
         severity="danger"
-        :disabled="item.status === 'uploaded'"
-        v-tooltip.left="item.status === 'uploaded' ? 'Files already uploaded' : 'Remove document'"
+        :disabled="!!item.status && item.status !== 'pending'"
+        v-tooltip.left="!!item.status && item.status !== 'pending' ? 'Files already uploaded' : 'Remove document'"
         @click="removeItem(index)"
       />
     </div>

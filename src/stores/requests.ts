@@ -1,6 +1,7 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 import type { RealtimeChannel } from '@supabase/supabase-js'
+import JSZip from 'jszip'
 import { FILES_BUCKET, supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/auth'
 import type { DocumentRequest, RequestItemDraft, RequestPriority, RequestStatus, UploadedFile } from '@/types'
@@ -170,7 +171,7 @@ export const useRequestsStore = defineStore('requests', () => {
 
   /** Invokes the send-email edge function; it logs the activity event itself. */
   async function sendEmail(
-    type: 'request_created' | 'reminder' | 'completed' | 'link_regenerated',
+    type: 'request_created' | 'reminder' | 'completed' | 'link_regenerated' | 'documents_rejected',
     requestId: string,
   ) {
     const { data, error } = await supabase.functions.invoke('send-email', {
@@ -206,13 +207,81 @@ export const useRequestsStore = defineStore('requests', () => {
     link.click()
   }
 
-  /** Downloads every uploaded file of a request. */
+  /** Downloads every uploaded file of a request as a single ZIP, grouped by document. */
   async function downloadFiles(request: DocumentRequest): Promise<number> {
-    const files = (request.request_items ?? []).flatMap((i) => i.uploaded_files ?? [])
-    for (const file of files) {
-      await downloadFile(file)
+    const items = (request.request_items ?? []).filter((i) => (i.uploaded_files ?? []).length > 0)
+    const total = items.reduce((sum, i) => sum + i.uploaded_files.length, 0)
+    if (total === 0) return 0
+
+    const zip = new JSZip()
+    const sanitize = (name: string) => name.replace(/[\\/:*?"<>|]+/g, '_').trim() || 'document'
+    for (const item of items) {
+      const folder = zip.folder(sanitize(item.title))!
+      const usedNames = new Set<string>()
+      for (const file of item.uploaded_files) {
+        const { data, error } = await supabase.storage.from(FILES_BUCKET).download(file.storage_path)
+        if (error) throw error
+        let name = sanitize(file.file_name)
+        for (let n = 2; usedNames.has(name); n++) {
+          name = sanitize(file.file_name).replace(/(\.[^.]*)?$/, ` (${n})$1`)
+        }
+        usedNames.add(name)
+        folder.file(name, data)
+      }
     }
-    return files.length
+
+    const blob = await zip.generateAsync({ type: 'blob' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `${sanitize(request.name)}.zip`
+    link.click()
+    URL.revokeObjectURL(url)
+    return total
+  }
+
+  /** Records the requestor's review decision for one document. */
+  async function reviewItem(itemId: string, decision: 'approved' | 'rejected') {
+    const { error } = await supabase.from('request_items').update({ status: decision }).eq('id', itemId)
+    if (error) throw error
+    await fetchAll()
+  }
+
+  /**
+   * Closes the review: everything approved → completed; otherwise the request
+   * returns to the client (pending) and rejections are emailed to them.
+   */
+  async function finishReview(
+    request: DocumentRequest,
+  ): Promise<{ outcome: 'completed' | 'returned'; rejectedCount: number; emailSent: boolean }> {
+    const items = request.request_items ?? []
+    if (items.some((i) => i.status === 'uploaded')) {
+      throw new Error('Approve or reject every submitted document first.')
+    }
+    if (items.length > 0 && items.every((i) => i.status === 'approved')) {
+      await setStatus(request.id, 'completed')
+      return { outcome: 'completed', rejectedCount: 0, emailSent: false }
+    }
+
+    const rejectedCount = items.filter((i) => i.status === 'rejected').length
+    const { error } = await supabase.from('document_requests').update({ status: 'pending' }).eq('id', request.id)
+    if (error) throw error
+    await logActivity(
+      request.id,
+      'info',
+      `${request.name} returned to client (${rejectedCount} document${rejectedCount === 1 ? '' : 's'} rejected)`,
+    )
+    let emailSent = false
+    if (rejectedCount > 0) {
+      try {
+        await sendEmail('documents_rejected', request.id)
+        emailSent = true
+      } catch {
+        emailSent = false
+      }
+    }
+    await fetchAll()
+    return { outcome: 'returned', rejectedCount, emailSent }
   }
 
   function portalLink(request: DocumentRequest): string {
@@ -281,6 +350,8 @@ export const useRequestsStore = defineStore('requests', () => {
     sendReminder,
     downloadFile,
     downloadFiles,
+    reviewItem,
+    finishReview,
     portalLink,
     updateSecurity,
     regeneratePortalLink,

@@ -17,8 +17,8 @@ import AppFooter from '@/components/layout/AppFooter.vue'
 import RequestDialog from '@/components/dashboard/RequestDialog.vue'
 import { supabase } from '@/lib/supabase'
 import { useRequestsStore, type RequestInput } from '@/stores/requests'
-import type { ActivityEvent, RequestStatus, UploadedFile } from '@/types'
-import { LINK_EXPIRY_OPTIONS, STATUS_LABELS, STATUS_SEVERITIES, formatBytes, linkExpired, requestProgress } from '@/types'
+import type { ActivityEvent, RequestItem, RequestStatus, UploadedFile } from '@/types'
+import { LINK_EXPIRY_OPTIONS, STATUS_LABELS, STATUS_SEVERITIES, formatBytes, itemReceived, linkExpired, requestProgress } from '@/types'
 
 const route = useRoute()
 const router = useRouter()
@@ -77,7 +77,9 @@ function subscribeEvents() {
 
 const progress = computed(() => (request.value ? requestProgress(request.value) : 0))
 const items = computed(() => request.value?.request_items ?? [])
-const uploadedCount = computed(() => items.value.filter((i) => i.status === 'uploaded').length)
+const uploadedCount = computed(() => items.value.filter((i) => itemReceived(i.status)).length)
+const inReview = computed(() => request.value?.status === 'in_review')
+const undecidedCount = computed(() => items.value.filter((i) => i.status === 'uploaded').length)
 const allFiles = computed(() => items.value.flatMap((i) => i.uploaded_files ?? []))
 const requestBytes = computed(() => allFiles.value.reduce((sum, f) => sum + (f.file_size ?? 0), 0))
 
@@ -284,6 +286,56 @@ async function downloadOne(file: UploadedFile) {
   }
 }
 
+function itemTag(item: RequestItem): { label: string; severity: 'warn' | 'info' | 'success' | 'danger' } {
+  switch (item.status) {
+    case 'uploaded':
+      return inReview.value ? { label: 'To review', severity: 'info' } : { label: 'Received', severity: 'success' }
+    case 'approved':
+      return { label: 'Approved', severity: 'success' }
+    case 'rejected':
+      return { label: 'Rejected', severity: 'danger' }
+    default:
+      return { label: 'Waiting for client', severity: 'warn' }
+  }
+}
+
+async function review(item: RequestItem, decision: 'approved' | 'rejected') {
+  try {
+    await requestsStore.reviewItem(item.id, decision)
+  } catch (error) {
+    toast.add({ severity: 'error', summary: 'Review failed', detail: error instanceof Error ? error.message : undefined, life: 5000 })
+  }
+}
+
+const finishing = ref(false)
+
+async function finishReview() {
+  if (!request.value) return
+  finishing.value = true
+  try {
+    const result = await requestsStore.finishReview(request.value)
+    if (result.outcome === 'completed') {
+      toast.add({ severity: 'success', summary: 'Request completed', detail: 'All documents were approved.', life: 4000 })
+    } else {
+      toast.add({
+        severity: 'info',
+        summary: 'Returned to client',
+        detail:
+          result.rejectedCount === 0
+            ? 'The request is back with your client for the remaining documents.'
+            : result.emailSent
+              ? `Your client was notified by email that ${result.rejectedCount} document${result.rejectedCount === 1 ? ' was' : 's were'} rejected.`
+              : 'The rejection email could not be sent — please notify your client another way.',
+        life: 6000,
+      })
+    }
+  } catch (error) {
+    toast.add({ severity: 'error', summary: 'Could not finish review', detail: error instanceof Error ? error.message : undefined, life: 5000 })
+  } finally {
+    finishing.value = false
+  }
+}
+
 async function setStatus(status: RequestStatus) {
   if (!request.value) return
   try {
@@ -358,16 +410,15 @@ function confirmDelete() {
           <div class="detail__actions">
             <Button label="Edit" icon="pi pi-pencil" severity="secondary" outlined @click="dialogVisible = true" />
             <Button label="Remind" icon="pi pi-bell" severity="secondary" outlined @click="remind" />
-            <Button label="Copy Link" icon="pi pi-link" severity="secondary" outlined @click="copyPortalLink" />
             <Button label="Download All" icon="pi pi-download" severity="secondary" outlined :disabled="allFiles.length === 0" @click="downloadAll" />
             <Button
-              v-if="request.status !== 'completed'"
+              v-if="request.status !== 'completed' && !inReview"
               label="Mark Completed"
               icon="pi pi-check"
               severity="success"
               @click="setStatus('completed')"
             />
-            <Button v-else label="Reopen" icon="pi pi-refresh" severity="secondary" @click="setStatus('pending')" />
+            <Button v-else-if="request.status === 'completed'" label="Reopen" icon="pi pi-refresh" severity="secondary" @click="setStatus('pending')" />
             <Button icon="pi pi-trash" severity="danger" text rounded v-tooltip.top="'Delete request'" @click="confirmDelete" />
           </div>
         </header>
@@ -380,6 +431,27 @@ function confirmDelete() {
             <p>Your client can no longer open it. Generate a new secure link and share it with them — the old one stays dead.</p>
           </div>
           <Button label="Generate New Link" icon="pi pi-refresh" severity="warn" @click="regenDialog = true" />
+        </section>
+
+        <!-- Review banner -->
+        <section v-if="inReview" class="bdg-card detail__review">
+          <i class="pi pi-eye detail__review-icon" />
+          <div class="detail__review-text">
+            <strong>Your client submitted documents for review.</strong>
+            <p>
+              Approve or reject each received document below.
+              <template v-if="undecidedCount > 0">{{ undecidedCount }} still need{{ undecidedCount === 1 ? 's' : '' }} a decision.</template>
+              <template v-else>All decisions are made — finish the review to close it out.</template>
+            </p>
+          </div>
+          <Button
+            label="Finish Review"
+            icon="pi pi-check-circle"
+            :disabled="undecidedCount > 0"
+            :loading="finishing"
+            v-tooltip.top="undecidedCount > 0 ? 'Review every submitted document first' : ''"
+            @click="finishReview"
+          />
         </section>
 
         <div class="detail__grid">
@@ -405,24 +477,46 @@ function confirmDelete() {
             <section class="bdg-card detail__card">
               <div class="detail__card-header">
                 <h2 class="detail__card-title"><i class="pi pi-check-square" /> Requested Documents</h2>
-                <Button label="Edit checklist" icon="pi pi-pencil" text size="small" @click="dialogVisible = true" />
               </div>
 
               <p v-if="items.length === 0" class="detail__empty-text">
-                No documents on this request yet. Use "Edit checklist" to add some.
+                No documents on this request yet. Use "Edit" to add some.
               </p>
 
               <div v-for="item in items" :key="item.id" class="doc-item">
-                <div class="doc-item__status" :class="{ 'doc-item__status--done': item.status === 'uploaded' }">
-                  <i :class="item.status === 'uploaded' ? 'pi pi-check' : 'pi pi-hourglass'" />
+                <div
+                  class="doc-item__status"
+                  :class="{
+                    'doc-item__status--done': itemReceived(item.status),
+                    'doc-item__status--rejected': item.status === 'rejected',
+                  }"
+                >
+                  <i :class="item.status === 'rejected' ? 'pi pi-times' : itemReceived(item.status) ? 'pi pi-check' : 'pi pi-hourglass'" />
                 </div>
                 <div class="doc-item__body">
                   <div class="doc-item__head">
                     <span class="doc-item__title">{{ item.title }}</span>
-                    <Tag
-                      :value="item.status === 'uploaded' ? 'Received' : 'Waiting for client'"
-                      :severity="item.status === 'uploaded' ? 'success' : 'warn'"
-                    />
+                    <div class="doc-item__head-actions">
+                      <template v-if="inReview && item.status !== 'pending'">
+                        <Button
+                          :label="item.status === 'approved' ? 'Approved' : 'Approve'"
+                          icon="pi pi-check"
+                          size="small"
+                          severity="success"
+                          :outlined="item.status !== 'approved'"
+                          @click="review(item, 'approved')"
+                        />
+                        <Button
+                          :label="item.status === 'rejected' ? 'Rejected' : 'Reject'"
+                          icon="pi pi-times"
+                          size="small"
+                          severity="danger"
+                          :outlined="item.status !== 'rejected'"
+                          @click="review(item, 'rejected')"
+                        />
+                      </template>
+                      <Tag v-else :value="itemTag(item).label" :severity="itemTag(item).severity" />
+                    </div>
                   </div>
                   <p v-if="item.description" class="doc-item__desc">{{ item.description }}</p>
 
@@ -497,8 +591,8 @@ function confirmDelete() {
                   <span class="portal-security__value" :class="{ 'portal-security__value--danger': isExpired }">{{ expiryText }}</span>
                 </div>
                 <div class="portal-actions">
-                  <Button label="Security" icon="pi pi-lock" size="small" text severity="secondary" class="flex-1" @click="openSecurityDialog" />
-                  <Button label="New link" icon="pi pi-refresh" size="small" text severity="secondary" class="flex-1" @click="regenDialog = true" />
+                  <Button label="Security" icon="pi pi-lock" size="small" outlined severity="secondary" class="flex-1" @click="openSecurityDialog" />
+                  <Button label="New link" icon="pi pi-refresh" size="small" outlined severity="secondary" class="flex-1" @click="regenDialog = true" />
                 </div>
               </div>
             </section>
@@ -699,6 +793,31 @@ function confirmDelete() {
   font-size: 0.875rem;
 }
 
+/* Review banner */
+.detail__review {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+  padding: 1rem 1.25rem;
+  margin-bottom: 1.25rem;
+  border: 1px solid #bfdbfe;
+  background: #eff6ff;
+}
+.detail__review-icon {
+  font-size: 1.5rem;
+  color: #1d4ed8;
+}
+.detail__review-text {
+  flex: 1;
+  min-width: 14rem;
+}
+.detail__review-text p {
+  margin: 0.25rem 0 0;
+  color: #1e40af;
+  font-size: 0.875rem;
+}
+
 /* Layout */
 .detail__grid {
   display: grid;
@@ -793,6 +912,16 @@ function confirmDelete() {
 .doc-item__status--done {
   background: #d1fae5;
   color: #047857;
+}
+.doc-item__status--rejected {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+.doc-item__head-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  flex-wrap: wrap;
 }
 .doc-item__body {
   flex: 1;

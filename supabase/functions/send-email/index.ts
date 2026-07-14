@@ -7,10 +7,10 @@ import { createClient } from 'jsr:@supabase/supabase-js@2'
  * user JWT whose user owns the request. Deployed with verify_jwt disabled so
  * the hook path works; both paths are enforced below.
  *
- * Body: { type: 'request_created' | 'reminder' | 'completed' | 'link_regenerated', request_id: string }
+ * Body: { type: 'request_created' | 'reminder' | 'completed' | 'link_regenerated' | 'documents_rejected', request_id: string }
  */
 
-type EmailType = 'request_created' | 'reminder' | 'completed' | 'link_regenerated'
+type EmailType = 'request_created' | 'reminder' | 'completed' | 'link_regenerated' | 'documents_rejected'
 
 const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY')!
 const EMAIL_HOOK_SECRET = Deno.env.get('EMAIL_HOOK_SECRET')!
@@ -21,8 +21,15 @@ const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
 const SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 const ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY')!
 
+/** Browser calls (supabase.functions.invoke) preflight with OPTIONS; without these headers they fail. */
+const CORS_HEADERS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-email-secret',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+}
+
 const json = (status: number, body: unknown) =>
-  new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } })
+  new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json', ...CORS_HEADERS } })
 
 function layout(heading: string, bodyHtml: string, cta?: { label: string; url: string }) {
   const button = cta
@@ -70,6 +77,7 @@ const esc = (s: string) =>
   s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 
 Deno.serve(async (req: Request) => {
+  if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: CORS_HEADERS })
   if (req.method !== 'POST') return json(405, { error: 'method not allowed' })
 
   let payload: { type?: EmailType; request_id?: string }
@@ -168,6 +176,32 @@ Deno.serve(async (req: Request) => {
         { label: 'Open the secure portal', url: portalUrl },
       )
       break
+    case 'documents_rejected': {
+      const { data: rejectedItems } = await admin
+        .from('request_items')
+        .select('title')
+        .eq('request_id', request.id)
+        .eq('status', 'rejected')
+        .order('position')
+      const rejectedList =
+        rejectedItems && rejectedItems.length > 0
+          ? `<ul style="margin:0 0 12px;padding-left:20px;font-size:15px;line-height:24px;color:#334155">${rejectedItems
+              .map((i: { title: string }) => `<li>${esc(i.title)}</li>`)
+              .join('')}</ul>`
+          : ''
+      to = request.client_email
+      subject = `Action needed: some documents for ${request.name} must be uploaded again`
+      html = layout(
+        'Some documents need your attention',
+        p(`Hi ${esc(clientName)},`) +
+          p(`${esc(ownerName)} at ${esc(senderCompany)} reviewed your documents for <strong>${esc(request.name)}</strong> and could not accept the following:`) +
+          rejectedList +
+          p('Please upload a new version of each rejected document through the secure portal below. Approved documents stay as they are — no need to resend them.') +
+          pinNote,
+        { label: 'Upload new documents', url: portalUrl },
+      )
+      break
+    }
     case 'completed':
       to = owner?.email ?? ''
       subject = `✅ ${request.client_name || request.client_email} completed "${request.name}"`
@@ -201,6 +235,7 @@ Deno.serve(async (req: Request) => {
     reminder: `Reminder email sent to ${to}`,
     link_regenerated: `New link emailed to ${to}`,
     completed: `Completion notification sent to ${to}`,
+    documents_rejected: `Rejection notice sent to ${to}`,
   }[type]
   await admin.from('activity_events').insert({
     user_id: request.user_id,

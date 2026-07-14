@@ -1,4 +1,7 @@
-export type RequestStatus = 'pending' | 'awaiting_client' | 'completed' | 'expired'
+export type RequestStatus = 'pending' | 'awaiting_client' | 'in_review' | 'completed' | 'expired'
+
+/** Lifecycle of one requested document: review decisions are made by the requestor. */
+export type ItemStatus = 'pending' | 'uploaded' | 'approved' | 'rejected'
 
 export interface Profile {
   id: string
@@ -25,7 +28,7 @@ export interface RequestItem {
   description: string
   category: string
   position: number
-  status: 'pending' | 'uploaded'
+  status: ItemStatus
   uploaded_files: UploadedFile[]
 }
 
@@ -83,7 +86,7 @@ export interface RequestItemDraft {
   title: string
   description: string
   category?: string
-  status?: 'pending' | 'uploaded'
+  status?: ItemStatus
 }
 
 /** Portal branding settings, one row per workspace owner (security is per request). */
@@ -129,7 +132,7 @@ export interface PortalItem {
   title: string
   description: string
   position: number
-  status: 'pending' | 'uploaded'
+  status: ItemStatus
   files: { id: string; file_name: string; file_size: number }[]
 }
 
@@ -160,6 +163,7 @@ export interface PortalGate {
 export const STATUS_LABELS: Record<RequestStatus, string> = {
   pending: 'Pending',
   awaiting_client: 'Awaiting Client',
+  in_review: 'In Review',
   completed: 'Completed',
   expired: 'Expired',
 }
@@ -167,14 +171,20 @@ export const STATUS_LABELS: Record<RequestStatus, string> = {
 export const STATUS_SEVERITIES: Record<RequestStatus, 'warn' | 'info' | 'success' | 'danger'> = {
   pending: 'warn',
   awaiting_client: 'info',
+  in_review: 'info',
   completed: 'success',
   expired: 'danger',
+}
+
+/** Received = the client uploaded it (whether or not it has been approved yet). */
+export function itemReceived(status: ItemStatus): boolean {
+  return status === 'uploaded' || status === 'approved'
 }
 
 export function requestProgress(request: DocumentRequest): number {
   const items = request.request_items ?? []
   if (items.length === 0) return 0
-  const uploaded = items.filter((i) => i.status === 'uploaded').length
+  const uploaded = items.filter((i) => itemReceived(i.status)).length
   return Math.round((uploaded / items.length) * 100)
 }
 

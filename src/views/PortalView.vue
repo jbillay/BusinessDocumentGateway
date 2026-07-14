@@ -9,7 +9,7 @@ import Tag from 'primevue/tag'
 import BrandLogo from '@/components/brand/BrandLogo.vue'
 import { brandingUrl, FILES_BUCKET, supabase } from '@/lib/supabase'
 import type { PortalBranding, PortalGate, PortalItem, PortalRequest } from '@/types'
-import { formatBytes } from '@/types'
+import { formatBytes, itemReceived } from '@/types'
 
 const route = useRoute()
 const toast = useToast()
@@ -40,11 +40,35 @@ const ACCEPTED = '.pdf,.docx,.jpg,.jpeg,.png'
 const MAX_SIZE = 50 * 1024 * 1024
 
 const items = computed(() => request.value?.items ?? [])
-const uploadedCount = computed(() => items.value.filter((i) => i.status === 'uploaded').length)
+const uploadedCount = computed(() => items.value.filter((i) => itemReceived(i.status)).length)
 const pendingCount = computed(() => items.value.length - uploadedCount.value)
 const progressPct = computed(() =>
   items.value.length === 0 ? 0 : Math.round((uploadedCount.value / items.value.length) * 100),
 )
+const inReview = computed(() => request.value?.status === 'in_review')
+const rejectedCount = computed(() => items.value.filter((i) => i.status === 'rejected').length)
+/** Submitting needs at least one freshly uploaded (not yet reviewed) document. */
+const canSubmit = computed(() => items.value.some((i) => i.status === 'uploaded'))
+
+/** Days until the expected date, colour-coded blue → orange → red. */
+const dueBadge = computed(() => {
+  const date = request.value?.expected_date
+  if (!date || request.value?.status === 'completed') return null
+  const days = Math.ceil((new Date(date + 'T23:59:59').getTime() - Date.now()) / 86400000)
+  const tone = days > 7 ? 'blue' : days >= 3 ? 'orange' : 'red'
+  const label =
+    days < 0
+      ? `Overdue by ${-days} day${days === -1 ? '' : 's'}`
+      : days === 0
+        ? 'Due today'
+        : `${days} day${days === 1 ? '' : 's'} left`
+  const dateLabel = new Date(date + 'T00:00:00').toLocaleDateString(undefined, {
+    month: 'long',
+    day: 'numeric',
+    year: 'numeric',
+  })
+  return { label, tone, dateLabel }
+})
 
 async function load() {
   loading.value = true
@@ -134,7 +158,7 @@ async function onDrop(event: DragEvent) {
   dragActive.value = false
   const files = Array.from(event.dataTransfer?.files ?? [])
   if (files.length === 0) return
-  const target = items.value.find((i) => i.status === 'pending')
+  const target = items.value.find((i) => i.status === 'pending' || i.status === 'rejected')
   if (!target) {
     toast.add({ severity: 'info', summary: 'All documents uploaded', detail: 'There are no pending documents.', life: 4000 })
     return
@@ -150,6 +174,11 @@ async function uploadFiles(item: PortalItem, files: File[]) {
   }
   uploadingItemId.value = item.id
   try {
+    if (item.status === 'rejected') {
+      // A new upload replaces the rejected files.
+      const { error: clearError } = await supabase.rpc('portal_clear_item', { p_token: token, p_item_id: item.id })
+      if (clearError) throw clearError
+    }
     for (const file of files) {
       const safeName = file.name.replace(/[^\w.\- ]+/g, '_')
       const path = `portal/${token}/${item.id}/${Date.now()}_${safeName}`
@@ -193,8 +222,8 @@ async function submit() {
   try {
     const { error } = await supabase.rpc('portal_submit', { p_token: token })
     if (error) throw error
-    submitted.value = true
-    toast.add({ severity: 'success', summary: 'Documents submitted', detail: 'Thank you! Your documents were sent securely.', life: 5000 })
+    await load()
+    toast.add({ severity: 'success', summary: 'Documents submitted', detail: 'Thank you! Your documents are now being reviewed.', life: 5000 })
   } catch (error) {
     toast.add({ severity: 'error', summary: 'Submit failed', detail: error instanceof Error ? error.message : undefined, life: 5000 })
   } finally {
@@ -204,6 +233,19 @@ async function submit() {
 
 function itemFileIcon(name: string): string {
   return /\.(jpe?g|png)$/i.test(name) ? 'pi pi-image' : 'pi pi-file'
+}
+
+function itemTag(item: PortalItem): { label: string; severity: 'secondary' | 'info' | 'success' | 'danger' } {
+  switch (item.status) {
+    case 'uploaded':
+      return inReview.value ? { label: 'Under review', severity: 'info' } : { label: 'Uploaded', severity: 'info' }
+    case 'approved':
+      return { label: 'Approved', severity: 'success' }
+    case 'rejected':
+      return { label: 'Rejected', severity: 'danger' }
+    default:
+      return { label: 'Pending', severity: 'secondary' }
+  }
 }
 </script>
 
@@ -275,6 +317,11 @@ function itemFileIcon(name: string): string {
             <strong>{{ request.company || request.owner_name || 'BDG' }}</strong> is requesting documents for your
             <strong>{{ request.name }}</strong>.
           </p>
+          <div v-if="dueBadge" class="portal__due" :class="`portal__due--${dueBadge.tone}`">
+            <i class="pi pi-clock" />
+            <strong>{{ dueBadge.label }}</strong>
+            <span class="portal__due-date">· due {{ dueBadge.dateLabel }}</span>
+          </div>
         </div>
 
         <div v-if="submitted" class="bdg-card portal__message-card portal__center">
@@ -285,6 +332,28 @@ function itemFileIcon(name: string): string {
         </div>
 
         <template v-else>
+          <div v-if="inReview" class="bdg-card portal__review">
+            <i class="pi pi-eye" />
+            <div>
+              <h3>Your documents are being reviewed</h3>
+              <p>
+                Nothing more to do for now — you'll be notified if any document needs to be uploaded again.
+                Documents cannot be changed while the review is in progress.
+              </p>
+            </div>
+          </div>
+
+          <div v-else-if="rejectedCount > 0" class="bdg-card portal__rejected-note">
+            <i class="pi pi-exclamation-triangle" />
+            <div>
+              <h3>{{ rejectedCount }} document{{ rejectedCount === 1 ? ' was' : 's were' }} rejected</h3>
+              <p>
+                Please upload a new version of each rejected document below, then submit again.
+                Approved documents are locked and don't need to be resent.
+              </p>
+            </div>
+          </div>
+
           <div class="portal__progress">
             <span class="bdg-label-sm">Upload progress</span>
             <span class="portal__progress-count"><strong>{{ uploadedCount }}</strong> / {{ items.length }}</span>
@@ -292,6 +361,7 @@ function itemFileIcon(name: string): string {
           <ProgressBar :value="progressPct" :show-value="false" style="height: 8px" class="mb-4" />
 
           <div
+            v-if="!inReview"
             class="portal__dropzone"
             :class="{ 'portal__dropzone--active': dragActive }"
             @dragover.prevent="dragActive = true"
@@ -311,21 +381,32 @@ function itemFileIcon(name: string): string {
               <Tag v-else value="All uploaded" severity="success" />
             </div>
 
-            <div v-for="(item, index) in items" :key="item.id" class="portal__item">
-              <span class="portal__item-status" :class="{ 'portal__item-status--done': item.status === 'uploaded' }">
-                <i v-if="item.status === 'uploaded'" class="pi pi-check" />
+            <div
+              v-for="(item, index) in items"
+              :key="item.id"
+              class="portal__item"
+              :class="{ 'portal__item--rejected': item.status === 'rejected' && !inReview }"
+            >
+              <span
+                class="portal__item-status"
+                :class="{
+                  'portal__item-status--done': itemReceived(item.status),
+                  'portal__item-status--rejected': item.status === 'rejected',
+                }"
+              >
+                <i v-if="itemReceived(item.status)" class="pi pi-check" />
+                <i v-else-if="item.status === 'rejected'" class="pi pi-times" />
                 <template v-else>{{ index + 1 }}</template>
               </span>
               <div class="portal__item-body">
                 <div class="portal__item-title">
                   {{ item.title }}
-                  <Tag
-                    :value="item.status === 'uploaded' ? 'Uploaded' : 'Pending'"
-                    :severity="item.status === 'uploaded' ? 'info' : 'secondary'"
-                    class="portal__item-tag"
-                  />
+                  <Tag :value="itemTag(item).label" :severity="itemTag(item).severity" class="portal__item-tag" />
                 </div>
                 <p v-if="item.description" class="portal__item-desc">{{ item.description }}</p>
+                <p v-if="item.status === 'rejected' && !inReview" class="portal__item-rejected-hint">
+                  Please upload a new version of this document.
+                </p>
                 <ul v-if="item.files.length" class="portal__files">
                   <li v-for="file in item.files" :key="file.id">
                     <i :class="itemFileIcon(file.file_name)" />
@@ -333,32 +414,35 @@ function itemFileIcon(name: string): string {
                   </li>
                 </ul>
               </div>
-              <div class="portal__item-action">
+              <div v-if="!inReview" class="portal__item-action">
                 <Button
-                  v-if="item.status !== 'uploaded'"
-                  label="Upload"
+                  v-if="item.status === 'pending' || item.status === 'rejected'"
+                  :label="item.status === 'rejected' ? 'Upload new' : 'Upload'"
                   icon="pi pi-upload"
                   outlined
+                  :severity="item.status === 'rejected' ? 'danger' : undefined"
                   :loading="uploadingItemId === item.id"
                   @click="pickFilesFor(item)"
                 />
                 <Button
-                  v-else
+                  v-else-if="item.status === 'uploaded'"
                   label="Remove"
                   icon="pi pi-trash"
                   text
                   severity="secondary"
                   @click="removeItemFiles(item)"
                 />
+                <span v-else class="portal__item-locked"><i class="pi pi-lock" /> Approved</span>
               </div>
             </div>
           </section>
 
-          <section class="bdg-card portal__submit">
+          <section v-if="!inReview" class="bdg-card portal__submit">
             <div>
               <h3>Ready to submit?</h3>
-              <p v-if="pendingCount > 0">You have {{ pendingCount }} document{{ pendingCount > 1 ? 's' : '' }} pending, but you can submit what you have now.</p>
-              <p v-else>Everything is uploaded — send it over!</p>
+              <p v-if="!canSubmit">Upload at least one document to enable submission.</p>
+              <p v-else-if="pendingCount > 0">You have {{ pendingCount }} document{{ pendingCount > 1 ? 's' : '' }} pending, but you can submit what you have now.</p>
+              <p v-else>Everything is uploaded — send it over for review!</p>
             </div>
             <Button
               label="Submit Documents"
@@ -366,6 +450,7 @@ function itemFileIcon(name: string): string {
               icon-pos="right"
               severity="contrast"
               :loading="submitting"
+              :disabled="!canSubmit"
               :style="submitStyle"
               @click="submit"
             />
@@ -451,6 +536,77 @@ function itemFileIcon(name: string): string {
 }
 .portal__welcome .portal__welcome-message {
   margin-bottom: 0.75rem;
+}
+.portal__due {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 1rem;
+  padding: 0.5rem 1.125rem;
+  border-radius: 999px;
+  font-size: 1rem;
+  border: 1px solid transparent;
+}
+.portal__due strong {
+  font-size: 1.05rem;
+}
+.portal__due-date {
+  opacity: 0.8;
+}
+.portal__due--blue {
+  background: #eff6ff;
+  border-color: #bfdbfe;
+  color: #1d4ed8;
+}
+.portal__due--orange {
+  background: #fff7ed;
+  border-color: #fed7aa;
+  color: #c2410c;
+}
+.portal__due--red {
+  background: #fef2f2;
+  border-color: #fecaca;
+  color: #b91c1c;
+}
+.portal__review,
+.portal__rejected-note {
+  display: flex;
+  gap: 0.875rem;
+  align-items: flex-start;
+  padding: 1.125rem 1.25rem;
+  margin-bottom: 1.5rem;
+}
+.portal__review {
+  border: 1px solid #bfdbfe;
+  background: #eff6ff;
+}
+.portal__review .pi {
+  color: #1d4ed8;
+  font-size: 1.25rem;
+  margin-top: 0.2rem;
+}
+.portal__review h3,
+.portal__rejected-note h3 {
+  margin: 0 0 0.25rem;
+  font-size: 1.05rem;
+}
+.portal__review p,
+.portal__rejected-note p {
+  margin: 0;
+  color: #1e40af;
+  font-size: 0.875rem;
+}
+.portal__rejected-note {
+  border: 1px solid #fecaca;
+  background: #fef2f2;
+}
+.portal__rejected-note .pi {
+  color: #b91c1c;
+  font-size: 1.25rem;
+  margin-top: 0.2rem;
+}
+.portal__rejected-note p {
+  color: #991b1b;
 }
 .portal__progress {
   display: flex;
@@ -541,6 +697,30 @@ function itemFileIcon(name: string): string {
   background: #cffafe;
   border-color: transparent;
   color: #0891b2;
+}
+.portal__item-status--rejected {
+  background: #fee2e2;
+  border-color: transparent;
+  color: #b91c1c;
+}
+.portal__item--rejected {
+  background: #fef2f2;
+}
+.portal__item-rejected-hint {
+  margin: 0.25rem 0 0;
+  color: #b91c1c;
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+.portal__item-locked {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  color: #047857;
+  font-size: 0.85rem;
+  font-weight: 600;
+  white-space: nowrap;
+  margin-top: 0.5rem;
 }
 .portal__item-body {
   flex: 1;
