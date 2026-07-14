@@ -1,0 +1,112 @@
+<!--
+  Supabase Auth "Confirm sign up" template.
+  Paste into: Dashboard > Authentication > Emails > Templates > Confirm sign up
+  (editable only once custom SMTP is configured).
+  Subject line: Welcome to Business Document Gateway — please confirm your email
+  Placeholders ({{ .ConfirmationURL }}, {{ .SiteURL }}) are filled by Supabase.
+-->
+<html>
+  <body style="margin:0;padding:0;background-color:#f1f5f9;">
+    <!-- Preheader: shows next to the subject in inbox previews, invisible in the email body -->
+    <div style="display:none;max-height:0;overflow:hidden;mso-hide:all;">
+      One click to activate your secure document workspace.
+    </div>
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f1f5f9;padding:32px 16px;">
+      <tr>
+        <td align="center">
+          <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;">
+            <!-- Header / wordmark -->
+            <tr>
+              <td style="padding:0 8px 20px 8px;" align="center">
+                <table role="presentation" cellpadding="0" cellspacing="0">
+                  <tr>
+                    <td style="background-color:#0f172a;border-radius:10px;width:40px;height:40px;text-align:center;vertical-align:middle;font-family:Arial,Helvetica,sans-serif;font-size:20px;font-weight:bold;color:#ffffff;">B</td>
+                    <td style="padding-left:12px;font-family:Arial,Helvetica,sans-serif;font-size:18px;font-weight:bold;color:#0f172a;">Business Document Gateway</td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+            <!-- Card -->
+            <tr>
+              <td style="background-color:#ffffff;border-radius:16px;padding:0;box-shadow:0 1px 3px rgba(15,23,42,0.08);">
+                <!-- Accent bar -->
+                <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+                  <tr>
+                    <td style="height:6px;background-color:#3b82f6;border-radius:16px 16px 0 0;font-size:0;line-height:0;">&nbsp;</td>
+                  </tr>
+                  <tr>
+                    <td style="padding:40px 48px 8px 48px;font-family:Arial,Helvetica,sans-serif;">
+                      <h1 style="margin:0 0 16px 0;font-size:26px;line-height:34px;color:#0f172a;">You're one click away 👋</h1>
+                      <p style="margin:0 0 12px 0;font-size:16px;line-height:26px;color:#334155;">
+                        Welcome aboard! Your <strong>Business Document Gateway</strong> workspace is ready —
+                        a single secure place to request, collect and track documents from your clients.
+                      </p>
+                      <p style="margin:0 0 28px 0;font-size:16px;line-height:26px;color:#334155;">
+                        Confirm your email address to activate your account and send your first document request in minutes.
+                      </p>
+                    </td>
+                  </tr>
+                  <!-- CTA button -->
+                  <tr>
+                    <td align="center" style="padding:0 48px 28px 48px;">
+                      <table role="presentation" cellpadding="0" cellspacing="0">
+                        <tr>
+                          <td style="background-color:#3b82f6;border-radius:10px;">
+                            <a href="{{ .ConfirmationURL }}"
+                               style="display:inline-block;padding:14px 36px;font-family:Arial,Helvetica,sans-serif;font-size:16px;font-weight:bold;color:#ffffff;text-decoration:none;border-radius:10px;">
+                              Confirm my email
+                            </a>
+                          </td>
+                        </tr>
+                      </table>
+                    </td>
+                  </tr>
+                  <!-- What you get -->
+                  <tr>
+                    <td style="padding:0 48px 8px 48px;font-family:Arial,Helvetica,sans-serif;">
+                      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f8fafc;border-radius:12px;">
+                        <tr>
+                          <td style="padding:20px 24px;">
+                            <p style="margin:0 0 10px 0;font-size:13px;line-height:18px;color:#64748b;text-transform:uppercase;letter-spacing:1px;"><strong>What's waiting for you</strong></p>
+                            <p style="margin:0 0 6px 0;font-size:15px;line-height:24px;color:#334155;">📄&nbsp;&nbsp;Branded client portals for effortless uploads</p>
+                            <p style="margin:0 0 6px 0;font-size:15px;line-height:24px;color:#334155;">🔒&nbsp;&nbsp;PIN-protected, expiring secure links</p>
+                            <p style="margin:0;font-size:15px;line-height:24px;color:#334155;">📊&nbsp;&nbsp;Real-time progress tracking &amp; activity log</p>
+                          </td>
+                        </tr>
+                      </table>
+                    </td>
+                  </tr>
+                  <!-- Fallback link + note -->
+                  <tr>
+                    <td style="padding:20px 48px 40px 48px;font-family:Arial,Helvetica,sans-serif;">
+                      <p style="margin:0 0 8px 0;font-size:13px;line-height:20px;color:#64748b;">
+                        If the button doesn't work, copy and paste this link into your browser:
+                      </p>
+                      <p style="margin:0 0 16px 0;font-size:13px;line-height:20px;word-break:break-all;">
+                        <a href="{{ .ConfirmationURL }}" style="color:#3b82f6;text-decoration:underline;">{{ .ConfirmationURL }}</a>
+                      </p>
+                      <p style="margin:0;font-size:13px;line-height:20px;color:#94a3b8;">
+                        Didn't create an account? You can safely ignore this email — no account will be activated without confirmation.
+                      </p>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+            <!-- Footer -->
+            <tr>
+              <td align="center" style="padding:24px 8px 0 8px;font-family:Arial,Helvetica,sans-serif;">
+                <p style="margin:0 0 4px 0;font-size:12px;line-height:18px;color:#94a3b8;">
+                  Business Document Gateway — secure document collection, simplified.
+                </p>
+                <p style="margin:0;font-size:12px;line-height:18px;color:#94a3b8;">
+                  <a href="{{ .SiteURL }}" style="color:#64748b;text-decoration:underline;">{{ .SiteURL }}</a>
+                </p>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>

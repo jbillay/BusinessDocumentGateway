@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useToast } from 'primevue/usetoast'
 import { useConfirm } from 'primevue/useconfirm'
@@ -8,13 +8,17 @@ import Button from 'primevue/button'
 import Tag from 'primevue/tag'
 import ProgressBar from 'primevue/progressbar'
 import Avatar from 'primevue/avatar'
+import Dialog from 'primevue/dialog'
+import InputText from 'primevue/inputtext'
+import Select from 'primevue/select'
+import ToggleSwitch from 'primevue/toggleswitch'
 import AppNavbar from '@/components/layout/AppNavbar.vue'
 import AppFooter from '@/components/layout/AppFooter.vue'
 import RequestDialog from '@/components/dashboard/RequestDialog.vue'
 import { supabase } from '@/lib/supabase'
 import { useRequestsStore, type RequestInput } from '@/stores/requests'
 import type { ActivityEvent, RequestStatus, UploadedFile } from '@/types'
-import { STATUS_LABELS, STATUS_SEVERITIES, formatBytes, requestProgress } from '@/types'
+import { LINK_EXPIRY_OPTIONS, STATUS_LABELS, STATUS_SEVERITIES, formatBytes, linkExpired, requestProgress } from '@/types'
 
 const route = useRoute()
 const router = useRouter()
@@ -98,6 +102,89 @@ const dueInfo = computed(() => {
 })
 
 const portalLink = computed(() => (request.value ? requestsStore.portalLink(request.value) : ''))
+const isExpired = computed(() => (request.value ? linkExpired(request.value) : false))
+const expiryText = computed(() => {
+  const at = request.value?.expires_at
+  if (!at) return 'Never expires'
+  const label = new Date(at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
+  return isExpired.value ? `Expired ${label}` : `Expires ${label}`
+})
+
+/* Per-request security editing */
+const securityDialog = ref(false)
+const securityForm = reactive({ pinEnabled: false, pin: '', expiryDays: -1 as number })
+const securitySaving = ref(false)
+const SECURITY_EXPIRY_OPTIONS = [{ label: 'Keep current expiry', value: -1 }, ...LINK_EXPIRY_OPTIONS]
+
+function openSecurityDialog() {
+  const req = request.value
+  if (!req) return
+  securityForm.pinEnabled = !!req.portal_pin
+  securityForm.pin = req.portal_pin ?? ''
+  securityForm.expiryDays = -1
+  securityDialog.value = true
+}
+
+function generatePin() {
+  securityForm.pin = String(Math.floor(100000 + Math.random() * 900000))
+}
+
+async function saveSecurity() {
+  const req = request.value
+  if (!req) return
+  if (securityForm.pinEnabled && !securityForm.pin.trim()) return
+  securitySaving.value = true
+  try {
+    await requestsStore.updateSecurity(req.id, {
+      portal_pin: securityForm.pinEnabled ? securityForm.pin.trim() : null,
+      ...(securityForm.expiryDays === -1
+        ? {}
+        : {
+            expires_at:
+              securityForm.expiryDays > 0
+                ? new Date(Date.now() + securityForm.expiryDays * 86400000).toISOString()
+                : null,
+          }),
+    })
+    securityDialog.value = false
+    toast.add({ severity: 'success', summary: 'Portal security updated', life: 3000 })
+  } catch (error) {
+    toast.add({ severity: 'error', summary: 'Update failed', detail: error instanceof Error ? error.message : undefined, life: 5000 })
+  } finally {
+    securitySaving.value = false
+  }
+}
+
+/* New-link generation (old link stops working) */
+const regenDialog = ref(false)
+const regenDays = ref(30)
+const regenerating = ref(false)
+
+async function regenerateLink() {
+  const req = request.value
+  if (!req) return
+  regenerating.value = true
+  try {
+    await requestsStore.regeneratePortalLink(req.id, regenDays.value)
+    regenDialog.value = false
+    toast.add({
+      severity: 'success',
+      summary: 'New link generated',
+      detail: 'The old link no longer works. Copy the new link and share it with your client.',
+      life: 6000,
+    })
+  } catch (error) {
+    toast.add({ severity: 'error', summary: 'Generation failed', detail: error instanceof Error ? error.message : undefined, life: 5000 })
+  } finally {
+    regenerating.value = false
+  }
+}
+
+async function copyPin() {
+  if (!request.value?.portal_pin) return
+  await navigator.clipboard.writeText(request.value.portal_pin)
+  toast.add({ severity: 'success', summary: 'Access code copied', life: 2500 })
+}
 
 function formatDate(date: string | null): string {
   if (!date) return '—'
@@ -253,6 +340,7 @@ function confirmDelete() {
               <Tag :value="STATUS_LABELS[request.status]" :severity="STATUS_SEVERITIES[request.status]" />
               <Tag v-if="request.priority === 'high'" value="High Priority" severity="danger" icon="pi pi-flag" />
               <Tag v-if="dueInfo" :value="dueInfo.label" :severity="dueInfo.severity" icon="pi pi-clock" />
+              <Tag v-if="isExpired" value="Link Expired" severity="danger" icon="pi pi-link" />
             </div>
             <p v-if="request.description" class="detail__description">{{ request.description }}</p>
             <p class="detail__meta">
@@ -276,6 +364,16 @@ function confirmDelete() {
             <Button icon="pi pi-trash" severity="danger" text rounded v-tooltip.top="'Delete request'" @click="confirmDelete" />
           </div>
         </header>
+
+        <!-- Expired-link banner -->
+        <section v-if="isExpired" class="bdg-card detail__expired">
+          <i class="pi pi-clock detail__expired-icon" />
+          <div class="detail__expired-text">
+            <strong>The portal link has expired.</strong>
+            <p>Your client can no longer open it. Generate a new secure link and share it with them — the old one stays dead.</p>
+          </div>
+          <Button label="Generate New Link" icon="pi pi-refresh" severity="warn" @click="regenDialog = true" />
+        </section>
 
         <div class="detail__grid">
           <div class="detail__col-main">
@@ -374,8 +472,27 @@ function confirmDelete() {
                 <span class="portal-link__url">{{ portalLink }}</span>
               </div>
               <div class="portal-actions">
-                <Button label="Copy" icon="pi pi-copy" size="small" outlined severity="secondary" class="flex-1" @click="copyPortalLink" />
-                <Button label="Preview" icon="pi pi-external-link" size="small" outlined severity="secondary" class="flex-1" @click="openPortal" />
+                <Button label="Copy" icon="pi pi-copy" size="small" outlined severity="secondary" class="flex-1" :disabled="isExpired" @click="copyPortalLink" />
+                <Button label="Preview" icon="pi pi-external-link" size="small" outlined severity="secondary" class="flex-1" :disabled="isExpired" @click="openPortal" />
+              </div>
+
+              <div class="portal-security">
+                <div class="portal-security__row">
+                  <span class="portal-security__label"><i class="pi pi-key" /> Access code</span>
+                  <span v-if="request.portal_pin" class="portal-security__value">
+                    <code>{{ request.portal_pin }}</code>
+                    <Button icon="pi pi-copy" text rounded size="small" severity="secondary" v-tooltip.top="'Copy code'" @click="copyPin" />
+                  </span>
+                  <span v-else class="portal-security__value portal-security__value--muted">None</span>
+                </div>
+                <div class="portal-security__row">
+                  <span class="portal-security__label"><i class="pi pi-clock" /> Link expiry</span>
+                  <span class="portal-security__value" :class="{ 'portal-security__value--danger': isExpired }">{{ expiryText }}</span>
+                </div>
+                <div class="portal-actions">
+                  <Button label="Security" icon="pi pi-lock" size="small" text severity="secondary" class="flex-1" @click="openSecurityDialog" />
+                  <Button label="New link" icon="pi pi-refresh" size="small" text severity="secondary" class="flex-1" @click="regenDialog = true" />
+                </div>
               </div>
             </section>
 
@@ -401,6 +518,69 @@ function confirmDelete() {
     <AppFooter />
 
     <RequestDialog v-model:visible="dialogVisible" :request="request" :saving="saving" @save="save" />
+
+    <!-- Per-request portal security -->
+    <Dialog v-model:visible="securityDialog" modal header="Portal Security" :style="{ width: '26rem', maxWidth: '95vw' }">
+      <div class="secdlg-row">
+        <div>
+          <div class="secdlg-row__title">Access code</div>
+          <div class="secdlg-row__desc">Require a code to open this request's portal.</div>
+        </div>
+        <ToggleSwitch v-model="securityForm.pinEnabled" aria-label="Require access code" />
+      </div>
+      <div v-if="securityForm.pinEnabled" class="bdg-field">
+        <label for="sec-pin">Access code</label>
+        <div class="secdlg-pin">
+          <InputText id="sec-pin" v-model="securityForm.pin" placeholder="e.g. 482913" maxlength="64" />
+          <Button label="Generate" icon="pi pi-sync" outlined severity="secondary" @click="generatePin" />
+        </div>
+      </div>
+      <div class="bdg-field">
+        <label for="sec-expiry">Link expiry</label>
+        <Select
+          id="sec-expiry"
+          v-model="securityForm.expiryDays"
+          :options="SECURITY_EXPIRY_OPTIONS"
+          option-label="label"
+          option-value="value"
+          class="w-full"
+        />
+        <small class="secdlg-hint">Durations are counted from now; the link itself stays the same.</small>
+      </div>
+      <template #footer>
+        <Button label="Cancel" severity="secondary" text :disabled="securitySaving" @click="securityDialog = false" />
+        <Button
+          label="Save"
+          icon="pi pi-check"
+          :loading="securitySaving"
+          :disabled="securityForm.pinEnabled && !securityForm.pin.trim()"
+          @click="saveSecurity"
+        />
+      </template>
+    </Dialog>
+
+    <!-- New portal link -->
+    <Dialog v-model:visible="regenDialog" modal header="Generate New Link" :style="{ width: '26rem', maxWidth: '95vw' }">
+      <p class="secdlg-warning">
+        <i class="pi pi-exclamation-triangle" />
+        The current link stops working immediately. You'll need to share the new link with your client.
+      </p>
+      <div class="bdg-field">
+        <label for="regen-expiry">New link is valid for</label>
+        <Select
+          id="regen-expiry"
+          v-model="regenDays"
+          :options="LINK_EXPIRY_OPTIONS"
+          option-label="label"
+          option-value="value"
+          class="w-full"
+        />
+      </div>
+      <template #footer>
+        <Button label="Cancel" severity="secondary" text :disabled="regenerating" @click="regenDialog = false" />
+        <Button label="Generate New Link" icon="pi pi-refresh" :loading="regenerating" @click="regenerateLink" />
+      </template>
+    </Dialog>
   </div>
 </template>
 
@@ -485,6 +665,31 @@ function confirmDelete() {
   align-items: flex-start;
   gap: 0.5rem;
   flex-wrap: wrap;
+}
+
+/* Expired-link banner */
+.detail__expired {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+  padding: 1rem 1.25rem;
+  margin-bottom: 1.25rem;
+  border: 1px solid #fcd34d;
+  background: #fffbeb;
+}
+.detail__expired-icon {
+  font-size: 1.5rem;
+  color: #b45309;
+}
+.detail__expired-text {
+  flex: 1;
+  min-width: 14rem;
+}
+.detail__expired-text p {
+  margin: 0.25rem 0 0;
+  color: #92400e;
+  font-size: 0.875rem;
 }
 
 /* Layout */
@@ -707,6 +912,94 @@ function confirmDelete() {
 .portal-actions {
   display: flex;
   gap: 0.5rem;
+}
+.portal-security {
+  margin-top: 0.875rem;
+  padding-top: 0.875rem;
+  border-top: 1px solid var(--bdg-border);
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.portal-security__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+}
+.portal-security__label {
+  color: #64748b;
+}
+.portal-security__label .pi {
+  color: #94a3b8;
+  margin-right: 0.375rem;
+  font-size: 0.8rem;
+}
+.portal-security__value {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-weight: 500;
+}
+.portal-security__value code {
+  background: #f1f5f9;
+  border-radius: 0.375rem;
+  padding: 0.125rem 0.5rem;
+  font-size: 0.8rem;
+}
+.portal-security__value--muted {
+  color: #94a3b8;
+  font-weight: 400;
+}
+.portal-security__value--danger {
+  color: #b91c1c;
+}
+
+/* Security dialogs */
+.secdlg-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.875rem 1rem;
+  border: 1px solid var(--bdg-border);
+  border-radius: 0.875rem;
+  margin-bottom: 1rem;
+}
+.secdlg-row__title {
+  font-weight: 600;
+}
+.secdlg-row__desc {
+  color: #64748b;
+  font-size: 0.85rem;
+}
+.secdlg-pin {
+  display: flex;
+  gap: 0.5rem;
+}
+.secdlg-pin .p-inputtext {
+  flex: 1;
+}
+.secdlg-hint {
+  color: #94a3b8;
+  font-size: 0.8rem;
+}
+.secdlg-warning {
+  display: flex;
+  gap: 0.625rem;
+  align-items: flex-start;
+  background: #fffbeb;
+  border: 1px solid #fcd34d;
+  border-radius: 0.75rem;
+  padding: 0.875rem 1rem;
+  color: #92400e;
+  font-size: 0.875rem;
+  margin: 0 0 1rem;
+}
+.secdlg-warning .pi {
+  color: #b45309;
+  margin-top: 0.125rem;
 }
 
 /* Activity timeline (mirrors the dashboard panel) */

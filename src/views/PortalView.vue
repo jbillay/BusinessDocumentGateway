@@ -20,6 +20,8 @@ const branding = ref<PortalBranding | null>(null)
 const loading = ref(true)
 const notFound = ref(false)
 const expired = ref(false)
+/** Who to contact for a fresh link, provided with the expired payload. */
+const expiredContact = ref<{ name: string; email: string; company: string } | null>(null)
 const pinRequired = ref(false)
 const wrongPin = ref(false)
 const pinInput = ref('')
@@ -60,6 +62,11 @@ async function load() {
     branding.value = payload.branding ?? null
     if (payload.link_expired) {
       expired.value = true
+      expiredContact.value = {
+        name: payload.owner_name ?? '',
+        email: payload.owner_email ?? '',
+        company: payload.company ?? '',
+      }
       return
     }
     if (payload.pin_required) {
@@ -89,6 +96,11 @@ async function unlock() {
   } finally {
     unlocking.value = false
   }
+}
+
+function emailRequestor() {
+  if (!expiredContact.value?.email) return
+  window.location.href = `mailto:${expiredContact.value.email}?subject=${encodeURIComponent('New upload link needed')}`
 }
 
 const logoUrl = computed(() => brandingUrl(branding.value?.logo_path))
@@ -219,8 +231,21 @@ function itemFileIcon(name: string): string {
 
       <div v-else-if="expired" class="portal__center bdg-card portal__message-card">
         <i class="pi pi-clock" style="font-size: 2.5rem; color: #b45309" />
-        <h2>Link expired</h2>
-        <p>This upload link is no longer active. Please contact the person who sent it to request a new one.</p>
+        <h2>This link has expired</h2>
+        <p>
+          For your security, upload links are only valid for a limited time.
+          Please contact
+          <strong>{{ expiredContact?.name || expiredContact?.company || 'the person who sent you this link' }}</strong>
+          <template v-if="expiredContact?.company && expiredContact?.name"> at {{ expiredContact.company }}</template>
+          to request a new secure link.
+        </p>
+        <Button
+          v-if="expiredContact?.email"
+          :label="`Email ${expiredContact.name || expiredContact.email}`"
+          icon="pi pi-envelope"
+          outlined
+          @click="emailRequestor"
+        />
       </div>
 
       <div v-else-if="pinRequired" class="portal__center bdg-card portal__message-card">

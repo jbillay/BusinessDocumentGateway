@@ -44,9 +44,17 @@ export interface DocumentRequest {
   expected_date: string | null
   status: RequestStatus
   portal_token: string
+  /** Per-request access code for the client portal; null = no PIN. */
+  portal_pin: string | null
+  /** null = the portal link never expires. */
+  expires_at: string | null
   created_at: string
   updated_at: string
   request_items: RequestItem[]
+}
+
+export function linkExpired(request: Pick<DocumentRequest, 'expires_at'>): boolean {
+  return request.expires_at !== null && Date.now() > new Date(request.expires_at).getTime()
 }
 
 export interface ActivityEvent {
@@ -55,6 +63,17 @@ export interface ActivityEvent {
   request_id: string | null
   type: string
   message: string
+  created_at: string
+}
+
+/** Reusable document template owned by a user, grouped by category. */
+export interface LibraryDocument {
+  id: string
+  user_id: string
+  title: string
+  description: string
+  category: string
+  position: number
   created_at: string
 }
 
@@ -67,7 +86,7 @@ export interface RequestItemDraft {
   status?: 'pending' | 'uploaded'
 }
 
-/** Portal customization settings, one row per workspace owner. */
+/** Portal branding settings, one row per workspace owner (security is per request). */
 export interface PortalSettings {
   user_id: string
   logo_path: string | null
@@ -75,11 +94,6 @@ export interface PortalSettings {
   accent_color: string
   headline: string
   welcome_message: string
-  password_protected: boolean
-  /** Shared access code given to clients — not a user credential. */
-  portal_pin: string | null
-  /** null = links never expire. */
-  link_expiry_days: number | null
 }
 
 export const PORTAL_SETTINGS_DEFAULTS = {
@@ -89,9 +103,6 @@ export const PORTAL_SETTINGS_DEFAULTS = {
   headline: 'Secure Document Upload',
   welcome_message:
     'Please securely upload the requested documents using the portal below. All files are encrypted end-to-end.',
-  password_protected: false,
-  portal_pin: null,
-  link_expiry_days: null,
 } satisfies Omit<PortalSettings, 'user_id'>
 
 /** Select options for link expiry; 0 means "never" (stored as null). */
@@ -140,6 +151,10 @@ export interface PortalGate {
   pin_required?: boolean
   wrong_pin?: boolean
   branding?: PortalBranding | null
+  /** Requestor contact, returned with link_expired so the client knows who to ask. */
+  owner_name?: string
+  owner_email?: string
+  company?: string
 }
 
 export const STATUS_LABELS: Record<RequestStatus, string> = {

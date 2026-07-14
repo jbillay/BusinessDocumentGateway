@@ -16,6 +16,9 @@ export interface RequestInput {
   client_phone: string
   expected_date: string | null
   status?: RequestStatus
+  /** Per-request portal security; omit to leave unchanged on update. */
+  portal_pin?: string | null
+  expires_at?: string | null
   items: RequestItemDraft[]
 }
 
@@ -73,6 +76,8 @@ export const useRequestsStore = defineStore('requests', () => {
         client_email: input.client_email,
         client_phone: input.client_phone,
         expected_date: input.expected_date,
+        portal_pin: input.portal_pin ?? null,
+        expires_at: input.expires_at ?? null,
       })
       .select()
       .single()
@@ -109,6 +114,8 @@ export const useRequestsStore = defineStore('requests', () => {
         client_phone: input.client_phone,
         expected_date: input.expected_date,
         ...(input.status ? { status: input.status } : {}),
+        ...(input.portal_pin !== undefined ? { portal_pin: input.portal_pin } : {}),
+        ...(input.expires_at !== undefined ? { expires_at: input.expires_at } : {}),
       })
       .eq('id', id)
     if (error) throw error
@@ -201,6 +208,23 @@ export const useRequestsStore = defineStore('requests', () => {
     return `${window.location.origin}/portal/${request.portal_token}`
   }
 
+  /** Updates only the portal security fields without touching the checklist. */
+  async function updateSecurity(id: string, patch: { portal_pin?: string | null; expires_at?: string | null }) {
+    const { error } = await supabase.from('document_requests').update(patch).eq('id', id)
+    if (error) throw error
+    await fetchAll()
+  }
+
+  /** Issues a fresh portal token (the old link dies) with a new expiry; null/0 days = never expires. */
+  async function regeneratePortalLink(id: string, expiryDays: number | null) {
+    const { error } = await supabase.rpc('regenerate_portal_link', {
+      p_request_id: id,
+      p_expiry_days: expiryDays && expiryDays > 0 ? expiryDays : null,
+    })
+    if (error) throw error
+    await fetchAll()
+  }
+
   /** Live-refresh the table when requests, items, or files change server-side. */
   function subscribe() {
     if (channel) return
@@ -237,6 +261,8 @@ export const useRequestsStore = defineStore('requests', () => {
     downloadFile,
     downloadFiles,
     portalLink,
+    updateSecurity,
+    regeneratePortalLink,
     subscribe,
     unsubscribe,
   }

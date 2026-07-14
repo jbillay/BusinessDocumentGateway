@@ -18,6 +18,11 @@ const menuItems = [
     command: () => router.push({ name: 'profile' }),
   },
   {
+    label: 'Document Library',
+    icon: 'pi pi-book',
+    command: () => router.push({ name: 'library' }),
+  },
+  {
     label: 'Portal Settings',
     icon: 'pi pi-palette',
     command: () => router.push({ name: 'portal-config' }),

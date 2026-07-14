@@ -1,18 +1,22 @@
 <script setup lang="ts">
-import { computed, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useToast } from 'primevue/usetoast'
 import InputText from 'primevue/inputtext'
 import Textarea from 'primevue/textarea'
 import DatePicker from 'primevue/datepicker'
 import SelectButton from 'primevue/selectbutton'
+import Select from 'primevue/select'
+import ToggleSwitch from 'primevue/toggleswitch'
 import Checkbox from 'primevue/checkbox'
 import Button from 'primevue/button'
 import Avatar from 'primevue/avatar'
 import Tag from 'primevue/tag'
 import BrandLogo from '@/components/brand/BrandLogo.vue'
 import { useRequestsStore } from '@/stores/requests'
+import { useLibraryStore } from '@/stores/library'
 import type { RequestPriority } from '@/types'
+import { LINK_EXPIRY_OPTIONS } from '@/types'
 
 interface ChecklistEntry {
   category: string
@@ -25,6 +29,7 @@ interface ChecklistEntry {
 const router = useRouter()
 const toast = useToast()
 const requestsStore = useRequestsStore()
+const library = useLibraryStore()
 
 const STEPS = [
   { label: 'Basics', title: 'General Info' },
@@ -42,31 +47,35 @@ const basics = reactive({
   priority: 'normal' as RequestPriority,
 })
 const client = reactive({ name: '', company: '', email: '', phone: '' })
-const errors = reactive<{ name?: string; clientName?: string; clientEmail?: string; items?: string }>({})
+/** Per-request portal security: optional PIN and link expiry (0 = never). */
+const security = reactive({ pinEnabled: false, pin: '', expiryDays: 0 })
+const errors = reactive<{ name?: string; clientName?: string; clientEmail?: string; items?: string; pin?: string }>({})
 
-// Suggested documents, pre-selected like the mockup; clients see them as the checklist.
-const entries = ref<ChecklistEntry[]>([
-  {
-    category: 'Financial Records',
-    title: '2023 Tax Returns',
-    description: 'Federal and State filings (1040)',
-    selected: true,
-  },
-  {
-    category: 'Financial Records',
-    title: 'Bank Statements',
-    description: 'Last 3 months for all primary checking accounts',
-    selected: true,
-  },
-  {
-    category: 'Identity & Compliance',
-    title: 'Proof of Identity',
-    description: 'Valid Passport or Government-issued ID',
-    selected: true,
-  },
-])
+function generatePin() {
+  security.pin = String(Math.floor(100000 + Math.random() * 900000))
+}
 
-const customForm = reactive({ open: false, title: '', description: '', category: '' })
+const expiryLabel = computed(
+  () => LINK_EXPIRY_OPTIONS.find((o) => o.value === security.expiryDays)?.label ?? 'Never',
+)
+
+// Checklist choices come from the user's document library; custom one-offs can be added on top.
+const entries = ref<ChecklistEntry[]>([])
+
+onMounted(async () => {
+  await library.load()
+  entries.value = [
+    ...library.documents.map((doc) => ({
+      category: doc.category,
+      title: doc.title,
+      description: doc.description,
+      selected: false,
+    })),
+    ...entries.value.filter((e) => e.custom),
+  ]
+})
+
+const customForm = reactive({ open: false, title: '', description: '', category: '', saveToLibrary: false })
 
 const selectedEntries = computed(() => entries.value.filter((e) => e.selected))
 const groupedSelected = computed(() => {
@@ -106,7 +115,8 @@ const dueLabel = computed(() =>
 function validateStep(index: number): boolean {
   if (index === 0) {
     errors.name = basics.name.trim() ? undefined : 'Request name is required.'
-    return !errors.name
+    errors.pin = security.pinEnabled && !security.pin.trim() ? 'Set an access code or turn protection off.' : undefined
+    return !errors.name && !errors.pin
   }
   if (index === 1) {
     errors.clientName = client.name.trim() ? undefined : 'Full name is required.'
@@ -148,20 +158,40 @@ function goTo(index: number) {
   step.value = index
 }
 
-function addCustomDocument() {
+async function addCustomDocument() {
   if (!customForm.title.trim()) return
-  entries.value.push({
+  const entry = {
     category: customForm.category.trim() || 'Additional Documents',
     title: customForm.title.trim(),
     description: customForm.description.trim(),
     selected: true,
     custom: true,
-  })
+  }
+  entries.value.push(entry)
+  if (customForm.saveToLibrary) {
+    try {
+      await library.create({ title: entry.title, description: entry.description, category: customForm.category.trim() })
+      toast.add({ severity: 'success', summary: 'Saved to library', detail: `"${entry.title}" is now reusable.`, life: 3000 })
+    } catch {
+      toast.add({ severity: 'warn', summary: 'Could not save to library', detail: 'The document was still added to this request.', life: 4000 })
+    }
+  }
   customForm.title = ''
   customForm.description = ''
   customForm.category = ''
+  customForm.saveToLibrary = false
   customForm.open = false
   errors.items = undefined
+}
+
+/** Per-category bulk selection for the checklist step. */
+function groupSelected(group: { items: ChecklistEntry[] }): boolean {
+  return group.items.every((i) => i.selected)
+}
+
+function toggleGroup(group: { items: ChecklistEntry[] }, value: boolean) {
+  for (const item of group.items) item.selected = value
+  if (value) errors.items = undefined
 }
 
 function removeCustom(entry: ChecklistEntry) {
@@ -185,6 +215,11 @@ async function send() {
       client_email: client.email.trim(),
       client_phone: client.phone.trim(),
       expected_date: basics.due ? toLocalDateString(basics.due) : null,
+      portal_pin: security.pinEnabled ? security.pin.trim() : null,
+      expires_at:
+        security.expiryDays > 0
+          ? new Date(Date.now() + security.expiryDays * 86400000).toISOString()
+          : null,
       items: selectedEntries.value.map((e) => ({
         title: e.title,
         description: e.description,
@@ -281,6 +316,40 @@ function cancel() {
             />
           </div>
         </div>
+
+        <div class="security-block">
+          <span class="bdg-label-sm"><i class="pi pi-lock" /> Portal security</span>
+          <div class="security-row">
+            <div>
+              <div class="security-row__title">Access code</div>
+              <div class="security-row__desc">Require a code to open this request's upload portal.</div>
+            </div>
+            <ToggleSwitch v-model="security.pinEnabled" aria-label="Require access code" />
+          </div>
+          <div v-if="security.pinEnabled" class="bdg-field security-pin">
+            <label for="wiz-pin">Access code for this request</label>
+            <div class="security-pin__row">
+              <InputText id="wiz-pin" v-model="security.pin" placeholder="e.g. 482913" maxlength="64" :invalid="!!errors.pin" />
+              <Button label="Generate" icon="pi pi-sync" outlined severity="secondary" @click="generatePin" />
+            </div>
+            <small v-if="errors.pin" class="p-error">{{ errors.pin }}</small>
+            <small v-else class="wizard__hint">Share this code with your client — only they should know it.</small>
+          </div>
+          <div class="security-row">
+            <div>
+              <div class="security-row__title">Link expiry</div>
+              <div class="security-row__desc">Automatically disable the portal link after a set duration.</div>
+            </div>
+            <Select
+              v-model="security.expiryDays"
+              :options="LINK_EXPIRY_OPTIONS"
+              option-label="label"
+              option-value="value"
+              class="security-expiry"
+              aria-label="Link expiry"
+            />
+          </div>
+        </div>
       </section>
 
       <!-- Step 2: Client Details -->
@@ -313,12 +382,25 @@ function cancel() {
       <!-- Step 3: Document Checklist -->
       <section v-else-if="step === 2" class="wizard__checklist">
         <h2 class="wizard__card-title">Document Checklist</h2>
-        <p class="wizard__card-subtitle">Specify the exact documents required from the client, or add custom requests.</p>
+        <p class="wizard__card-subtitle">
+          Pick documents from your library — tick a category to add all of its documents at once — or add custom requests.
+        </p>
         <small v-if="errors.items" class="p-error block mb-3">{{ errors.items }}</small>
+
+        <div v-if="!library.loading && library.documents.length === 0" class="bdg-card checklist-empty">
+          <i class="pi pi-book" />
+          <p>
+            Your <router-link :to="{ name: 'library' }">document library</router-link> is empty. Documents you save
+            there appear here for every new request — or add custom documents below.
+          </p>
+        </div>
 
         <div v-for="group in groupedAll" :key="group.category" class="checklist-group">
           <div class="checklist-group__header">
-            <h3>{{ group.category }}</h3>
+            <label class="checklist-group__select">
+              <Checkbox :model-value="groupSelected(group)" binary @update:model-value="toggleGroup(group, $event)" />
+              <h3>{{ group.category }}</h3>
+            </label>
             <Tag :value="`${group.items.filter((i) => i.selected).length} Required`" severity="secondary" />
           </div>
           <label v-for="entry in group.items" :key="entry.title" class="bdg-card checklist-item" :class="{ 'checklist-item--off': !entry.selected }">
@@ -357,6 +439,10 @@ function cancel() {
             <label for="wiz-custom-desc">Instructions for the client</label>
             <Textarea id="wiz-custom-desc" v-model="customForm.description" rows="1" auto-resize class="w-full" />
           </div>
+          <label class="checklist-save-lib">
+            <Checkbox v-model="customForm.saveToLibrary" binary />
+            <span>Also save to my document library for future requests</span>
+          </label>
           <div class="flex gap-2 justify-content-end">
             <Button label="Cancel" text severity="secondary" size="small" @click="customForm.open = false" />
             <Button label="Add Document" icon="pi pi-plus" size="small" :disabled="!customForm.title.trim()" @click="addCustomDocument" />
@@ -388,6 +474,18 @@ function cancel() {
               <div>
                 <span class="bdg-label-sm">Due date</span>
                 <p class="review-card__value mt-1"><i class="pi pi-calendar mr-1" style="color: #94a3b8" />{{ dueLabel }}</p>
+              </div>
+            </div>
+            <div class="review-card__row">
+              <div>
+                <span class="bdg-label-sm">Access code</span>
+                <p class="review-card__value mt-1">
+                  <i class="pi pi-lock mr-1" style="color: #94a3b8" />{{ security.pinEnabled ? security.pin : 'None' }}
+                </p>
+              </div>
+              <div>
+                <span class="bdg-label-sm">Link expiry</span>
+                <p class="review-card__value mt-1"><i class="pi pi-clock mr-1" style="color: #94a3b8" />{{ expiryLabel }}</p>
               </div>
             </div>
           </div>
@@ -564,6 +662,48 @@ function cancel() {
 .wizard__card {
   padding: 2rem;
 }
+.security-block {
+  margin-top: 1.25rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--bdg-border);
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+.security-block > .bdg-label-sm .pi {
+  margin-right: 0.35rem;
+}
+.security-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.875rem 1rem;
+  border: 1px solid var(--bdg-border);
+  border-radius: 0.875rem;
+}
+.security-row__title {
+  font-weight: 600;
+}
+.security-row__desc {
+  color: #64748b;
+  font-size: 0.85rem;
+  margin-top: 0.125rem;
+}
+.security-pin {
+  margin: 0;
+  padding: 0 0.25rem;
+}
+.security-pin__row {
+  display: flex;
+  gap: 0.5rem;
+}
+.security-pin__row .p-inputtext {
+  flex: 1;
+}
+.security-expiry {
+  min-width: 8rem;
+}
 .wizard__card-title {
   margin: 0 0 0.25rem;
   font-size: 1.5rem;
@@ -600,6 +740,41 @@ function cancel() {
 .checklist-group__header h3 {
   margin: 0;
   font-size: 1.15rem;
+}
+.checklist-group__select {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  cursor: pointer;
+}
+.checklist-empty {
+  display: flex;
+  align-items: center;
+  gap: 0.875rem;
+  padding: 1rem 1.25rem;
+  margin-bottom: 1.25rem;
+  color: #64748b;
+}
+.checklist-empty .pi {
+  font-size: 1.25rem;
+  color: #94a3b8;
+}
+.checklist-empty p {
+  margin: 0;
+  font-size: 0.9rem;
+}
+.checklist-empty a {
+  color: var(--bdg-blue);
+  font-weight: 600;
+}
+.checklist-save-lib {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  cursor: pointer;
+  margin-bottom: 0.875rem;
+  font-size: 0.875rem;
+  color: #475569;
 }
 .checklist-item {
   display: flex;

@@ -5,21 +5,19 @@ import { useToast } from 'primevue/usetoast'
 import Button from 'primevue/button'
 import InputText from 'primevue/inputtext'
 import Textarea from 'primevue/textarea'
-import ToggleSwitch from 'primevue/toggleswitch'
-import Select from 'primevue/select'
 import AppNavbar from '@/components/layout/AppNavbar.vue'
 import AppFooter from '@/components/layout/AppFooter.vue'
 import BrandLogo from '@/components/brand/BrandLogo.vue'
 import { brandingUrl } from '@/lib/supabase'
 import { usePortalSettingsStore, type PortalSettingsInput } from '@/stores/portalSettings'
-import { LINK_EXPIRY_OPTIONS, PORTAL_SETTINGS_DEFAULTS } from '@/types'
+import { PORTAL_SETTINGS_DEFAULTS } from '@/types'
 
 const router = useRouter()
 const toast = useToast()
 const store = usePortalSettingsStore()
 
 const form = reactive<PortalSettingsInput>({ ...PORTAL_SETTINGS_DEFAULTS })
-const errors = reactive<{ pin?: string; logo?: string }>({})
+const errors = reactive<{ logo?: string }>({})
 const saving = ref(false)
 
 const logoInput = ref<HTMLInputElement | null>(null)
@@ -33,7 +31,6 @@ function resetForm() {
   const s = store.settings
   Object.assign(form, s ? { ...s } : { ...PORTAL_SETTINGS_DEFAULTS })
   clearPendingLogo()
-  errors.pin = undefined
   errors.logo = undefined
 }
 
@@ -82,30 +79,12 @@ function safeColor(value: string, fallback: string): string {
 const previewPrimary = computed(() => safeColor(form.primary_color, PORTAL_SETTINGS_DEFAULTS.primary_color))
 const previewAccent = computed(() => safeColor(form.accent_color, PORTAL_SETTINGS_DEFAULTS.accent_color))
 
-/** Bridges the Select (0 = never) to the stored value (null = never). */
-const expiryModel = computed({
-  get: () => form.link_expiry_days ?? 0,
-  set: (v: number) => {
-    form.link_expiry_days = v === 0 ? null : v
-  },
-})
-
-const expiryLabel = computed(
-  () => LINK_EXPIRY_OPTIONS.find((o) => o.value === (form.link_expiry_days ?? 0))?.label ?? 'Never',
-)
-
 function cancel() {
   resetForm()
   router.push({ name: 'dashboard' })
 }
 
 async function save() {
-  errors.pin =
-    form.password_protected && !(form.portal_pin ?? '').trim()
-      ? 'Set a PIN or password, or turn protection off.'
-      : undefined
-  if (errors.pin) return
-
   saving.value = true
   try {
     const previousLogo = store.settings?.logo_path ?? null
@@ -116,7 +95,6 @@ async function save() {
       ...form,
       primary_color: previewPrimary.value,
       accent_color: previewAccent.value,
-      portal_pin: form.password_protected ? (form.portal_pin ?? '').trim() : form.portal_pin,
     })
     if (previousLogo && previousLogo !== form.logo_path) await store.deleteLogo(previousLogo)
     clearPendingLogo()
@@ -215,49 +193,16 @@ async function save() {
             </div>
           </section>
 
-          <!-- Security & Access -->
-          <section class="bdg-card config-card">
-            <div class="config-card__header">
+          <!-- Security note -->
+          <section class="bdg-card config-card config-card--note">
+            <div class="config-card__header" style="margin-bottom: 0.5rem">
               <span class="config-card__icon" style="background: #fef2f2; color: #dc2626"><i class="pi pi-lock" /></span>
               <h2>Security &amp; Access</h2>
             </div>
-
-            <div class="setting-row">
-              <div>
-                <div class="setting-row__title">Password Protection</div>
-                <div class="setting-row__desc">Require a PIN or password to access the upload portal.</div>
-              </div>
-              <ToggleSwitch v-model="form.password_protected" aria-label="Password protection" />
-            </div>
-
-            <div v-if="form.password_protected" class="bdg-field setting-pin">
-              <label for="portalPin">Portal PIN / password</label>
-              <InputText
-                id="portalPin"
-                :model-value="form.portal_pin ?? ''"
-                placeholder="e.g. 4821 or a passphrase"
-                maxlength="64"
-                :invalid="!!errors.pin"
-                @update:model-value="form.portal_pin = $event ?? ''"
-              />
-              <small v-if="errors.pin" class="p-error">{{ errors.pin }}</small>
-              <small v-else class="setting-row__desc">Share this code with your client — they'll need it to open the link.</small>
-            </div>
-
-            <div class="setting-row setting-row--last">
-              <div>
-                <div class="setting-row__title">Link Expiry</div>
-                <div class="setting-row__desc">Automatically disable the portal link after a set duration.</div>
-              </div>
-              <Select
-                v-model="expiryModel"
-                :options="LINK_EXPIRY_OPTIONS"
-                option-label="label"
-                option-value="value"
-                class="expiry-select"
-                aria-label="Link expiry"
-              />
-            </div>
+            <p class="config-note">
+              Access codes and link expiry are now set <strong>per request</strong> — configure them when creating a
+              request, or from the request's detail page. This keeps each client's portal isolated.
+            </p>
           </section>
         </div>
 
@@ -281,10 +226,6 @@ async function save() {
             <button class="preview-frame__submit" :style="{ background: previewPrimary }" type="button" disabled>
               Submit Documents
             </button>
-            <div class="preview-frame__meta">
-              <span v-if="form.password_protected"><i class="pi pi-lock" /> PIN required</span>
-              <span><i class="pi pi-clock" /> Link expiry: {{ expiryLabel }}</span>
-            </div>
           </div>
         </aside>
       </div>
@@ -407,36 +348,11 @@ async function save() {
 .color-field .p-inputtext {
   flex: 1;
 }
-.setting-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  padding: 1rem;
-  border: 1px solid var(--bdg-border);
-  border-radius: 0.875rem;
-}
-.setting-row + .bdg-field,
-.setting-row + .setting-row {
-  margin-top: 0.875rem;
-}
-.setting-row--last {
-  margin-top: 0.875rem;
-}
-.setting-row__title {
-  font-weight: 600;
-}
-.setting-row__desc {
+.config-note {
+  margin: 0;
   color: #64748b;
-  font-size: 0.875rem;
-  margin-top: 0.125rem;
-}
-.setting-pin {
-  margin: 0.875rem 0 0;
-  padding: 0 0.25rem;
-}
-.expiry-select {
-  min-width: 8rem;
+  font-size: 0.9rem;
+  line-height: 1.55;
 }
 /* Live preview */
 .config-preview {
