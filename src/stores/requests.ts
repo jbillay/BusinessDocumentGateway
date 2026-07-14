@@ -163,7 +163,48 @@ export const useRequestsStore = defineStore('requests', () => {
     await fetchAll()
   }
 
+  /** Recursively lists every object path under a storage prefix. */
+  async function listStoragePaths(prefix: string): Promise<string[]> {
+    const { data: entries, error } = await supabase.storage.from(FILES_BUCKET).list(prefix, { limit: 1000 })
+    if (error) throw error
+    const paths: string[] = []
+    for (const entry of entries ?? []) {
+      // Folders come back with a null id.
+      if (entry.id) paths.push(`${prefix}/${entry.name}`)
+      else paths.push(...(await listStoragePaths(`${prefix}/${entry.name}`)))
+    }
+    return paths
+  }
+
   async function deleteRequest(id: string) {
+    // Storage objects must be removed first: the storage delete policy stops
+    // matching once the request row (and its portal token) is gone, which would
+    // orphan the objects forever. Sweeping the whole portal/{token} prefix also
+    // catches files replaced via portal_clear_item, which deletes only DB rows.
+    const { data: request, error: fetchError } = await supabase
+      .from('document_requests')
+      .select('portal_token')
+      .eq('id', id)
+      .single()
+    if (fetchError) throw fetchError
+
+    const paths = new Set<string>(
+      request.portal_token ? await listStoragePaths(`portal/${request.portal_token}`) : [],
+    )
+    // Recorded paths may live outside the current token prefix (e.g. uploads
+    // made before the portal link was regenerated).
+    const { data: files, error: filesError } = await supabase
+      .from('uploaded_files')
+      .select('storage_path, request_items!inner(request_id)')
+      .eq('request_items.request_id', id)
+    if (filesError) throw filesError
+    for (const file of files ?? []) paths.add(file.storage_path)
+
+    if (paths.size > 0) {
+      const { error: storageError } = await supabase.storage.from(FILES_BUCKET).remove([...paths])
+      if (storageError) throw storageError
+    }
+
     const { error } = await supabase.from('document_requests').delete().eq('id', id)
     if (error) throw error
     requests.value = requests.value.filter((r) => r.id !== id)
