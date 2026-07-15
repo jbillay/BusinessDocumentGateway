@@ -13,10 +13,12 @@ import Button from 'primevue/button'
 import Avatar from 'primevue/avatar'
 import Tag from 'primevue/tag'
 import BrandLogo from '@/components/brand/BrandLogo.vue'
+import UpgradeDialog from '@/components/billing/UpgradeDialog.vue'
 import { useRequestsStore } from '@/stores/requests'
 import { useLibraryStore } from '@/stores/library'
+import { useBillingStore } from '@/stores/billing'
 import type { RequestPriority } from '@/types'
-import { LINK_EXPIRY_OPTIONS } from '@/types'
+import { LINK_EXPIRY_OPTIONS, planLimitCode } from '@/types'
 
 interface ChecklistEntry {
   category: string
@@ -30,6 +32,16 @@ const router = useRouter()
 const toast = useToast()
 const requestsStore = useRequestsStore()
 const library = useLibraryStore()
+const billing = useBillingStore()
+
+/** The 4th-request wall (task 016): shown instead of the form when at the limit. */
+const upgradeOpen = ref(false)
+const upgradeMessage = ref('')
+
+function showUpgrade(message: string) {
+  upgradeMessage.value = message
+  upgradeOpen.value = true
+}
 
 const STEPS = [
   { label: 'Basics', title: 'General Info' },
@@ -63,6 +75,7 @@ const expiryLabel = computed(
 const entries = ref<ChecklistEntry[]>([])
 
 onMounted(async () => {
+  billing.load()
   await library.load()
   entries.value = [
     ...library.documents.map((doc) => ({
@@ -243,12 +256,22 @@ async function send() {
     })
     router.push({ name: 'dashboard' })
   } catch (error) {
-    toast.add({
-      severity: 'error',
-      summary: 'Send failed',
-      detail: error instanceof Error ? error.message : 'Please try again.',
-      life: 5000,
-    })
+    // Server-side plan walls come back as machine-readable plan_limit:* errors.
+    const limit = planLimitCode(error)
+    if (limit === 'active_requests') {
+      showUpgrade(
+        `You've hit your plan's limit of ${billing.requests.limit} active requests — Pro gives you 25. Completing or deleting a request also frees a slot.`,
+      )
+    } else if (limit === 'storage') {
+      showUpgrade('Your storage is full — new requests are paused until you free space or upgrade to Pro for 25 GB.')
+    } else {
+      toast.add({
+        severity: 'error',
+        summary: 'Send failed',
+        detail: error instanceof Error ? error.message : 'Please try again.',
+        life: 5000,
+      })
+    }
   } finally {
     sending.value = false
   }
@@ -272,6 +295,21 @@ function cancel() {
         <p>Gather documents from your clients efficiently.</p>
       </div>
 
+      <!-- The 4th-request wall: at the plan limit the form never opens. -->
+      <section v-if="billing.requests.atLimit" class="bdg-card wizard__limit-wall">
+        <span class="wizard__limit-icon"><i class="pi pi-inbox" /></span>
+        <h2>You've hit {{ billing.requests.limit }} active requests</h2>
+        <p>
+          Pro gives you 25 active requests, 25 GB of storage, and custom portal branding. You can also free a slot by
+          completing or deleting an existing request — nothing is lost either way.
+        </p>
+        <div class="wizard__limit-actions">
+          <Button label="See plans & upgrade" icon="pi pi-arrow-up-right" @click="router.push({ name: 'billing' })" />
+          <Button label="Back to dashboard" text severity="secondary" @click="router.push({ name: 'dashboard' })" />
+        </div>
+      </section>
+
+      <template v-else>
       <nav class="stepper" aria-label="Progress">
         <template v-for="(s, index) in STEPS" :key="s.label">
           <button
@@ -565,11 +603,50 @@ function cancel() {
         />
         <Button v-else label="Send Request" icon="pi pi-send" icon-pos="right" :loading="sending" @click="send" />
       </footer>
+      </template>
     </main>
+
+    <UpgradeDialog v-model:visible="upgradeOpen" :message="upgradeMessage" />
   </div>
 </template>
 
 <style scoped>
+.wizard__limit-wall {
+  max-width: 34rem;
+  margin: 2rem auto 0;
+  padding: 2.5rem 2rem;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+}
+.wizard__limit-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 3.5rem;
+  height: 3.5rem;
+  border-radius: 50%;
+  background: #eff6ff;
+  color: var(--bdg-blue, #3b82f6);
+  font-size: 1.5rem;
+}
+.wizard__limit-wall h2 {
+  margin: 0;
+}
+.wizard__limit-wall p {
+  margin: 0;
+  color: #64748b;
+  line-height: 1.55;
+}
+.wizard__limit-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  justify-content: center;
+  margin-top: 0.75rem;
+}
 .wizard {
   min-height: 100vh;
   background: var(--bdg-canvas);

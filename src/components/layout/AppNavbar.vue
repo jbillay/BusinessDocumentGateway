@@ -27,6 +27,11 @@ const menuItems = [
     icon: 'pi pi-palette',
     command: () => router.push({ name: 'portal-config' }),
   },
+  {
+    label: 'Plan & Billing',
+    icon: 'pi pi-credit-card',
+    command: () => router.push({ name: 'billing' }),
+  },
   { separator: true },
   {
     label: 'Sign out',

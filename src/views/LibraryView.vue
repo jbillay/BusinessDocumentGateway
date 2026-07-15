@@ -10,14 +10,24 @@ import AutoComplete from 'primevue/autocomplete'
 import Tag from 'primevue/tag'
 import AppNavbar from '@/components/layout/AppNavbar.vue'
 import AppFooter from '@/components/layout/AppFooter.vue'
+import UpgradeDialog from '@/components/billing/UpgradeDialog.vue'
 import { useLibraryStore, type LibraryDocumentInput } from '@/stores/library'
+import { useBillingStore } from '@/stores/billing'
 import type { LibraryDocument } from '@/types'
+import { planLimitCode } from '@/types'
 
 const toast = useToast()
 const confirm = useConfirm()
 const library = useLibraryStore()
+const billing = useBillingStore()
 
-onMounted(() => library.load())
+onMounted(() => {
+  library.load()
+  billing.load()
+})
+
+const upgradeOpen = ref(false)
+const UPGRADE_MESSAGE = `Your library is at the Free plan's limit of 10 documents — Pro makes it unlimited.`
 
 const dialogVisible = ref(false)
 const editing = ref<LibraryDocument | null>(null)
@@ -32,6 +42,10 @@ function searchCategories(event: { query: string }) {
 }
 
 function openCreate() {
+  if (billing.library.atLimit) {
+    upgradeOpen.value = true
+    return
+  }
   editing.value = null
   form.title = ''
   form.description = ''
@@ -67,12 +81,17 @@ async function save() {
     dialogVisible.value = false
     toast.add({ severity: 'success', summary: editing.value ? 'Document updated' : 'Document added', life: 3000 })
   } catch (error) {
-    toast.add({
-      severity: 'error',
-      summary: 'Save failed',
-      detail: error instanceof Error ? error.message : undefined,
-      life: 5000,
-    })
+    if (planLimitCode(error) === 'library') {
+      dialogVisible.value = false
+      upgradeOpen.value = true
+    } else {
+      toast.add({
+        severity: 'error',
+        summary: 'Save failed',
+        detail: error instanceof Error ? error.message : undefined,
+        life: 5000,
+      })
+    }
   } finally {
     saving.value = false
   }
@@ -179,6 +198,8 @@ function confirmDelete(doc: LibraryDocument) {
         <Button :label="editing ? 'Save Changes' : 'Add Document'" icon="pi pi-check" :loading="saving" @click="save" />
       </template>
     </Dialog>
+
+    <UpgradeDialog v-model:visible="upgradeOpen" :message="UPGRADE_MESSAGE" />
   </div>
 </template>
 

@@ -107,6 +107,9 @@ async function submit() {
         Don't have an account?
         <router-link :to="{ name: 'register' }" class="auth-card__link font-semibold">Request access</router-link>
       </p>
+      <p class="auth-card__footer">
+        <router-link :to="{ name: 'pricing' }" class="auth-card__link">See plans &amp; pricing</router-link>
+      </p>
     </div>
   </div>
 </template>

@@ -21,12 +21,14 @@ import ActivityPanel from '@/components/dashboard/ActivityPanel.vue'
 import { useRequestsStore, type RequestInput } from '@/stores/requests'
 import { useActivityStore } from '@/stores/activity'
 import { useAuthStore } from '@/stores/auth'
+import { useBillingStore } from '@/stores/billing'
 import type { DocumentRequest, RequestStatus } from '@/types'
 import { STATUS_LABELS, STATUS_SEVERITIES, formatBytes, requestProgress } from '@/types'
 
 const requestsStore = useRequestsStore()
 const activityStore = useActivityStore()
 const auth = useAuthStore()
+const billing = useBillingStore()
 const router = useRouter()
 const toast = useToast()
 const confirm = useConfirm()
@@ -47,10 +49,15 @@ const statusOptions = (Object.keys(STATUS_LABELS) as RequestStatus[]).map((value
 
 const storageUsed = computed(() => {
   const gb = requestsStore.storageBytes / (1024 * 1024 * 1024)
-  return gb >= 0.01 ? `${gb.toFixed(2)}` : formatBytes(requestsStore.storageBytes)
+  return gb >= 0.01 ? `${gb.toFixed(2)} GB` : formatBytes(requestsStore.storageBytes)
 })
+/** Plan-aware storage cap for the stat hint; falls back while entitlements load. */
+const storageCap = computed(() =>
+  billing.storage.limit !== null ? `/ ${formatBytes(billing.storage.limit)}` : undefined,
+)
 
 onMounted(async () => {
+  billing.load()
   await Promise.all([requestsStore.fetchAll(), activityStore.fetch()])
   requestsStore.subscribe()
   activityStore.subscribe()
@@ -176,6 +183,20 @@ function lastActivity(request: DocumentRequest): string {
           <Button label="Create New Request" icon="pi pi-plus" @click="openCreate" />
         </div>
 
+        <!-- Storage soft wall (task 016): persistent from 80%, explicit at 100%. -->
+        <div v-if="billing.storage.nearLimit" class="dashboard__storage-banner" :class="{ 'is-full': billing.storage.atLimit }">
+          <i :class="billing.storage.atLimit ? 'pi pi-exclamation-circle' : 'pi pi-exclamation-triangle'" />
+          <span v-if="billing.storage.atLimit">
+            Your storage is full — new requests are paused. Client uploads to existing requests keep working. Free
+            space by deleting completed requests, or upgrade for more room.
+          </span>
+          <span v-else>
+            You've used {{ Math.round(billing.storage.ratio * 100) }}% of your
+            {{ formatBytes(billing.storage.limit ?? 0) }} storage.
+          </span>
+          <Button label="View plan" size="small" text @click="router.push({ name: 'billing' })" />
+        </div>
+
         <div class="dashboard__stats">
           <StatCard label="Pending Requests" :value="String(requestsStore.stats.pending)" icon="pi pi-hourglass" />
           <StatCard label="Completed" :value="String(requestsStore.stats.completed)" icon="pi pi-check-circle" hint-class="positive" />
@@ -186,7 +207,7 @@ function lastActivity(request: DocumentRequest): string {
             :hint="requestsStore.stats.awaitingClient > 0 ? 'Needs attention' : undefined"
             hint-class="attention"
           />
-          <StatCard label="Storage" :value="storageUsed" icon="pi pi-cloud" hint="/ 10 GB" />
+          <StatCard label="Storage" :value="storageUsed" icon="pi pi-cloud" :hint="storageCap" />
         </div>
 
         <section class="bdg-card dashboard__table-card">
@@ -326,6 +347,29 @@ function lastActivity(request: DocumentRequest): string {
   gap: 1rem;
   flex-wrap: wrap;
   margin-bottom: 1.25rem;
+}
+.dashboard__storage-banner {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  padding: 0.75rem 1rem;
+  margin-bottom: 1.25rem;
+  border-radius: 0.75rem;
+  border: 1px solid #fde68a;
+  background: #fffbeb;
+  color: #92400e;
+  font-size: 0.9rem;
+  flex-wrap: wrap;
+}
+.dashboard__storage-banner.is-full {
+  border-color: #fecaca;
+  background: #fef2f2;
+  color: #b91c1c;
+}
+.dashboard__storage-banner span {
+  flex: 1;
+  min-width: 14rem;
+  line-height: 1.45;
 }
 .dashboard__title {
   margin: 0;

@@ -17,6 +17,9 @@ const toast = useToast()
 const token = route.params.token as string
 const request = ref<PortalRequest | null>(null)
 const branding = ref<PortalBranding | null>(null)
+/** Free-plan owners advertise us on their portals (the growth loop). */
+const showBadge = ref(false)
+const badgeUrl = `${window.location.origin}/pricing?utm_source=portal_badge&utm_medium=referral`
 const loading = ref(true)
 const notFound = ref(false)
 const expired = ref(false)
@@ -84,6 +87,7 @@ async function load() {
     }
     const payload = data as Partial<PortalRequest> & PortalGate
     branding.value = payload.branding ?? null
+    showBadge.value = payload.show_badge ?? false
     if (payload.link_expired) {
       expired.value = true
       expiredContact.value = {
@@ -459,6 +463,13 @@ function itemTag(item: PortalItem): { label: string; severity: 'secondary' | 'in
       </template>
     </main>
 
+    <footer v-if="showBadge && !loading" class="portal__powered">
+      <a :href="badgeUrl" target="_blank" rel="noopener">
+        <i class="pi pi-bolt" /> Powered by <strong>Business Document Gateway</strong> — collect documents from your
+        clients
+      </a>
+    </footer>
+
     <input ref="fileInput" type="file" multiple :accept="ACCEPTED" class="hidden" @change="onFilesPicked" />
   </div>
 </template>
@@ -467,6 +478,33 @@ function itemTag(item: PortalItem): { label: string; severity: 'secondary' | 'in
 .portal {
   min-height: 100vh;
   background: #faf7f8;
+  display: flex;
+  flex-direction: column;
+}
+.portal__powered {
+  text-align: center;
+  padding: 1rem 1.5rem 1.5rem;
+  margin-top: auto;
+}
+.portal__powered a {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: #94a3b8;
+  font-size: 0.8rem;
+  text-decoration: none;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+.portal__powered a:hover {
+  color: #64748b;
+}
+.portal__powered strong {
+  color: #64748b;
+  font-weight: 600;
+}
+.portal__powered .pi {
+  font-size: 0.75rem;
 }
 .portal__header {
   position: sticky;

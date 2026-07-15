@@ -57,6 +57,18 @@ const router = createRouter({
       meta: { requiresAuth: true },
     },
     {
+      path: '/billing',
+      name: 'billing',
+      component: () => import('@/views/BillingView.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
+      // Public marketing page: works signed-in or out.
+      path: '/pricing',
+      name: 'pricing',
+      component: () => import('@/views/PricingView.vue'),
+    },
+    {
       // Public client-facing upload portal, reached via unguessable token link.
       path: '/portal/:token',
       name: 'portal',

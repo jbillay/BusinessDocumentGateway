@@ -145,6 +145,8 @@ export interface PortalRequest {
   company: string
   owner_name: string
   branding: PortalBranding | null
+  /** True when the owner is on the Free plan: portal shows the "Powered by BDG" badge. */
+  show_badge?: boolean
   items: PortalItem[]
 }
 
@@ -154,6 +156,7 @@ export interface PortalGate {
   pin_required?: boolean
   wrong_pin?: boolean
   branding?: PortalBranding | null
+  show_badge?: boolean
   /** Requestor contact, returned with link_expired so the client knows who to ask. */
   owner_name?: string
   owner_email?: string
@@ -186,6 +189,51 @@ export function requestProgress(request: DocumentRequest): number {
   if (items.length === 0) return 0
   const uploaded = items.filter((i) => itemReceived(i.status)).length
   return Math.round((uploaded / items.length) * 100)
+}
+
+/** Subscription tiers; Business will join later. */
+export type PlanTier = 'free' | 'pro'
+
+/** past_due keeps paid entitlements while Stripe retries; canceled behaves as free. */
+export type SubscriptionStatus = 'active' | 'past_due' | 'canceled'
+
+/** Tier limits as returned by plan_limits(); null max_library_documents = unlimited. */
+export interface PlanLimits {
+  max_active_requests: number
+  max_storage_bytes: number
+  max_library_documents: number | null
+  custom_branding: boolean
+  auto_reminders: boolean
+  show_badge: boolean
+}
+
+/** Shape returned by the get_my_entitlements RPC. */
+export interface Entitlements {
+  plan: PlanTier
+  status: SubscriptionStatus
+  billing_interval: 'month' | 'year' | null
+  current_period_end: string | null
+  cancel_at_period_end: boolean
+  limits: PlanLimits
+  usage: {
+    active_requests: number
+    storage_bytes: number
+    library_documents: number
+  }
+}
+
+export const PLAN_LABELS: Record<PlanTier, string> = {
+  free: 'Free',
+  pro: 'Pro',
+}
+
+/**
+ * Extracts the machine-readable code from a 'plan_limit:*' server error,
+ * e.g. 'active_requests' | 'storage' | 'library' | 'branding'; null otherwise.
+ */
+export function planLimitCode(error: unknown): string | null {
+  const message = error instanceof Error ? error.message : typeof error === 'string' ? error : ''
+  return message.match(/plan_limit:(\w+)/)?.[1] ?? null
 }
 
 export function formatBytes(bytes: number): string {

@@ -10,11 +10,16 @@ import AppFooter from '@/components/layout/AppFooter.vue'
 import BrandLogo from '@/components/brand/BrandLogo.vue'
 import { brandingUrl } from '@/lib/supabase'
 import { usePortalSettingsStore, type PortalSettingsInput } from '@/stores/portalSettings'
-import { PORTAL_SETTINGS_DEFAULTS } from '@/types'
+import { useBillingStore } from '@/stores/billing'
+import { PORTAL_SETTINGS_DEFAULTS, planLimitCode } from '@/types'
 
 const router = useRouter()
 const toast = useToast()
 const store = usePortalSettingsStore()
+const billing = useBillingStore()
+
+/** Branding is a Pro feature: fields stay visible but locked on Free (task 016). */
+const locked = computed(() => billing.entitlements !== null && !billing.canUseBranding)
 
 const form = reactive<PortalSettingsInput>({ ...PORTAL_SETTINGS_DEFAULTS })
 const errors = reactive<{ logo?: string }>({})
@@ -35,7 +40,10 @@ function resetForm() {
 }
 
 watch(() => store.settings, resetForm)
-onMounted(() => store.load())
+onMounted(() => {
+  store.load()
+  billing.load()
+})
 onBeforeUnmount(clearPendingLogo)
 
 function clearPendingLogo() {
@@ -85,6 +93,7 @@ function cancel() {
 }
 
 async function save() {
+  if (locked.value) return
   saving.value = true
   try {
     const previousLogo = store.settings?.logo_path ?? null
@@ -103,7 +112,12 @@ async function save() {
     toast.add({
       severity: 'error',
       summary: 'Save failed',
-      detail: error instanceof Error ? error.message : undefined,
+      detail:
+        planLimitCode(error) === 'branding'
+          ? 'Custom branding is a Pro feature — upgrade to make the portal yours.'
+          : error instanceof Error
+            ? error.message
+            : undefined,
       life: 5000,
     })
   } finally {
@@ -124,9 +138,21 @@ async function save() {
         </div>
         <div class="config-header__actions">
           <Button label="Cancel" severity="secondary" outlined :disabled="saving" @click="cancel" />
-          <Button label="Save Changes" severity="contrast" :loading="saving" @click="save" />
+          <Button label="Save Changes" severity="contrast" :loading="saving" :disabled="locked" @click="save" />
         </div>
       </div>
+
+      <section v-if="locked" class="bdg-card config-locked">
+        <span class="config-locked__icon"><i class="pi pi-lock" /></span>
+        <div class="config-locked__text">
+          <h2>Make the portal yours — branding is a Pro feature</h2>
+          <p>
+            Your logo, colours, and welcome message replace the BDG defaults on every client portal. Settings below
+            are shown so you can see what's possible; upgrade to unlock them.
+          </p>
+        </div>
+        <Button label="Upgrade to Pro" icon="pi pi-arrow-up-right" @click="router.push({ name: 'billing' })" />
+      </section>
 
       <div class="config-layout">
         <div class="config-forms">
@@ -144,12 +170,13 @@ async function save() {
                   <img v-if="logoPreview" :src="logoPreview" alt="Portal logo preview" />
                   <i v-else class="pi pi-image" />
                 </span>
-                <Button label="Upload Image" icon="pi pi-upload" outlined @click="logoInput?.click()" />
+                <Button label="Upload Image" icon="pi pi-upload" outlined :disabled="locked" @click="logoInput?.click()" />
                 <Button
                   v-if="logoPreview"
                   label="Remove"
                   text
                   severity="secondary"
+                  :disabled="locked"
                   @click="removeLogo"
                 />
                 <span class="logo-hint">PNG or SVG, max 2MB</span>
@@ -162,15 +189,15 @@ async function save() {
               <div class="bdg-field col-12 md:col-6">
                 <label for="primaryColor">Primary Brand Color</label>
                 <div class="color-field">
-                  <input type="color" :value="previewPrimary" @input="form.primary_color = ($event.target as HTMLInputElement).value" aria-label="Primary brand color" />
-                  <InputText id="primaryColor" v-model="form.primary_color" maxlength="7" />
+                  <input type="color" :value="previewPrimary" :disabled="locked" @input="form.primary_color = ($event.target as HTMLInputElement).value" aria-label="Primary brand color" />
+                  <InputText id="primaryColor" v-model="form.primary_color" maxlength="7" :disabled="locked" />
                 </div>
               </div>
               <div class="bdg-field col-12 md:col-6">
                 <label for="accentColor">Accent Color</label>
                 <div class="color-field">
-                  <input type="color" :value="previewAccent" @input="form.accent_color = ($event.target as HTMLInputElement).value" aria-label="Accent color" />
-                  <InputText id="accentColor" v-model="form.accent_color" maxlength="7" />
+                  <input type="color" :value="previewAccent" :disabled="locked" @input="form.accent_color = ($event.target as HTMLInputElement).value" aria-label="Accent color" />
+                  <InputText id="accentColor" v-model="form.accent_color" maxlength="7" :disabled="locked" />
                 </div>
               </div>
             </div>
@@ -185,11 +212,11 @@ async function save() {
 
             <div class="bdg-field">
               <label for="headline">Headline</label>
-              <InputText id="headline" v-model="form.headline" maxlength="80" />
+              <InputText id="headline" v-model="form.headline" maxlength="80" :disabled="locked" />
             </div>
             <div class="bdg-field" style="margin-bottom: 0">
               <label for="welcomeMessage">Welcome Message</label>
-              <Textarea id="welcomeMessage" v-model="form.welcome_message" rows="3" auto-resize maxlength="500" style="width: 100%" />
+              <Textarea id="welcomeMessage" v-model="form.welcome_message" rows="3" auto-resize maxlength="500" style="width: 100%" :disabled="locked" />
             </div>
           </section>
 
@@ -353,6 +380,42 @@ async function save() {
   color: #64748b;
   font-size: 0.9rem;
   line-height: 1.55;
+}
+.config-locked {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1.25rem 1.5rem;
+  margin-bottom: 1.5rem;
+  border: 1px solid #bfdbfe;
+  background: #eff6ff;
+  flex-wrap: wrap;
+}
+.config-locked__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 50%;
+  background: #dbeafe;
+  color: var(--bdg-blue, #3b82f6);
+  font-size: 1.1rem;
+  flex-shrink: 0;
+}
+.config-locked__text {
+  flex: 1;
+  min-width: 16rem;
+}
+.config-locked__text h2 {
+  margin: 0 0 0.25rem;
+  font-size: 1.05rem;
+}
+.config-locked__text p {
+  margin: 0;
+  color: #64748b;
+  font-size: 0.875rem;
+  line-height: 1.5;
 }
 /* Live preview */
 .config-preview {
