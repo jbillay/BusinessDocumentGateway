@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import Toast from 'primevue/toast'
 import ConfirmDialog from 'primevue/confirmdialog'
+import CookieBanner from '@/components/legal/CookieBanner.vue'
+import CookieSettingsDialog from '@/components/legal/CookieSettingsDialog.vue'
 </script>
 
 <template>
@@ -13,4 +15,7 @@ import ConfirmDialog from 'primevue/confirmdialog'
     animation on the view root (see main.css) that can't block navigation.
   -->
   <router-view />
+  <!-- GDPR consent, app-wide (task 021) -->
+  <CookieBanner />
+  <CookieSettingsDialog />
 </template>

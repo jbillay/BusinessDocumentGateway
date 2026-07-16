@@ -3,10 +3,18 @@ import { useAuthStore } from '@/stores/auth'
 
 const router = createRouter({
   history: createWebHistory(),
+  scrollBehavior(to, _from, savedPosition) {
+    if (to.hash) return { el: to.hash, behavior: 'smooth', top: 72 }
+    if (savedPosition) return savedPosition
+    return { top: 0 }
+  },
   routes: [
     {
+      // Public marketing landing page. Signed-in users are sent to the dashboard.
       path: '/',
-      redirect: '/dashboard',
+      name: 'landing',
+      component: () => import('@/views/LandingView.vue'),
+      meta: { guestOnly: true },
     },
     {
       path: '/login',
@@ -67,6 +75,27 @@ const router = createRouter({
       path: '/pricing',
       name: 'pricing',
       component: () => import('@/views/PricingView.vue'),
+    },
+    // Public legal pages (accessible signed-in or out; linked from the footer).
+    {
+      path: '/legal/terms',
+      name: 'terms',
+      component: () => import('@/views/legal/TermsView.vue'),
+    },
+    {
+      path: '/legal/privacy',
+      name: 'privacy',
+      component: () => import('@/views/legal/PrivacyView.vue'),
+    },
+    {
+      path: '/legal/dpa',
+      name: 'dpa',
+      component: () => import('@/views/legal/DPAView.vue'),
+    },
+    {
+      path: '/legal/cookies',
+      name: 'cookie-policy',
+      component: () => import('@/views/legal/CookiePolicyView.vue'),
     },
     {
       // Public client-facing upload portal, reached via unguessable token link.
