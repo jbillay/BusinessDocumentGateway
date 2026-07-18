@@ -8,6 +8,7 @@ import MarketingNav from '@/components/marketing/MarketingNav.vue'
 import SiteFooter from '@/components/marketing/SiteFooter.vue'
 import { useAuthStore } from '@/stores/auth'
 import { CONTACT_EMAIL } from '@/lib/contact'
+import { PRO_PRICES, TEASER_FREE, TEASER_PRO } from '@/lib/plans'
 
 /**
  * Public commercial landing page (task 020). Sections: hero, value metrics,
@@ -253,10 +254,7 @@ function submitContact() {
             <h3 class="plans__name">Free</h3>
             <div class="plans__price"><span class="amount">$0</span><span class="per">forever</span></div>
             <ul class="plans__list">
-              <li><i class="pi pi-check" /> 3 active requests</li>
-              <li><i class="pi pi-check" /> 1 GB storage</li>
-              <li><i class="pi pi-check" /> 10 library documents</li>
-              <li><i class="pi pi-check" /> Access codes, link expiry & review</li>
+              <li v-for="line in TEASER_FREE" :key="line"><i class="pi pi-check" /> {{ line }}</li>
             </ul>
             <Button label="Start for free" outlined class="w-full" @click="getStarted" />
           </div>
@@ -264,13 +262,10 @@ function submitContact() {
             <span class="plans__flag">Most popular</span>
             <h3 class="plans__name">Pro</h3>
             <div class="plans__price">
-              <span class="amount">$15</span><span class="per">/mo billed annually</span>
+              <span class="amount">${{ PRO_PRICES.annual }}</span><span class="per">/mo billed annually</span>
             </div>
             <ul class="plans__list">
-              <li><i class="pi pi-check" /> 25 active requests</li>
-              <li><i class="pi pi-check" /> 25 GB storage</li>
-              <li><i class="pi pi-check" /> Unlimited library documents</li>
-              <li><i class="pi pi-check" /> Custom branding & auto reminders</li>
+              <li v-for="line in TEASER_PRO" :key="line"><i class="pi pi-check" /> {{ line }}</li>
             </ul>
             <Button label="See full pricing" icon="pi pi-arrow-right" icon-pos="right" class="w-full" @click="router.push({ name: 'pricing' })" />
           </div>
@@ -342,15 +337,19 @@ function submitContact() {
     radial-gradient(ellipse 55% 45% at 12% 0%, rgba(74, 86, 176, 0.1), transparent),
     radial-gradient(ellipse 50% 50% at 92% 30%, rgba(6, 182, 212, 0.12), transparent),
     var(--bdg-canvas);
+  display: flex;
 }
 .hero__inner {
   max-width: 1200px;
   margin: 0 auto;
-  padding: 4.5rem 1.5rem 4rem;
+  padding: 3rem 1.5rem;
   display: grid;
   grid-template-columns: 1.05fr 0.95fr;
   gap: 3rem;
   align-items: center;
+  /* First impression owns the viewport (svh keeps mobile URL bars honest). */
+  min-height: calc(100vh - 4.2rem);
+  min-height: calc(100svh - 4.2rem);
 }
 .hero__eyebrow {
   display: inline-block;
@@ -529,8 +528,9 @@ function submitContact() {
 }
 
 /* ---- Generic section ---- */
+/* One shared rhythm: every section is an unhurried chapter. */
 .section {
-  padding: 4.5rem 0;
+  padding: 5.5rem 0;
 }
 /* Anchor targets clear the sticky header when scrolled to. */
 .section[id] {
@@ -549,7 +549,7 @@ function submitContact() {
 .section__head {
   text-align: center;
   max-width: 40rem;
-  margin: 0 auto 2.75rem;
+  margin: 0 auto 3rem;
 }
 .section__head h2 {
   margin: 0.5rem 0 0.75rem;
@@ -751,7 +751,7 @@ function submitContact() {
 .cta__inner {
   max-width: 720px;
   margin: 0 auto;
-  padding: 3.75rem 1.5rem;
+  padding: 4.5rem 1.5rem;
   text-align: center;
   color: #fff;
 }
@@ -826,6 +826,8 @@ function submitContact() {
     grid-template-columns: 1fr;
     gap: 2.5rem;
     padding-top: 3rem;
+    /* Stacked layout: let content set the height so the CTA stays reachable. */
+    min-height: 0;
   }
   .hero__preview {
     order: -1;
