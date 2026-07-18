@@ -122,6 +122,7 @@ function submitContact() {
   <div class="landing">
     <MarketingNav />
 
+    <main id="main">
     <!-- Hero -->
     <section class="hero">
       <div class="hero__inner">
@@ -318,6 +319,7 @@ function submitContact() {
         </form>
       </div>
     </section>
+    </main>
 
     <SiteFooter />
   </div>

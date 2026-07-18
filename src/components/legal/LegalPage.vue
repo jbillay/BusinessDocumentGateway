@@ -17,7 +17,7 @@ defineProps<{
 <template>
   <div class="legal-page">
     <MarketingNav />
-    <main class="legal-page__main">
+    <main id="main" class="legal-page__main">
       <article class="legal-prose">
         <header class="legal-prose__head">
           <h1>{{ title }}</h1>

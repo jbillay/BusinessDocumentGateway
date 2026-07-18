@@ -199,9 +199,11 @@ onBeforeUnmount(() => window.removeEventListener('scroll', onScroll))
   margin-top: 0.5rem;
 }
 
-.mkt-menu-enter-active,
-.mkt-menu-leave-active {
-  transition: opacity 0.18s ease, transform 0.18s ease;
+@media (prefers-reduced-motion: no-preference) {
+  .mkt-menu-enter-active,
+  .mkt-menu-leave-active {
+    transition: opacity 0.18s ease, transform 0.18s ease;
+  }
 }
 .mkt-menu-enter-from,
 .mkt-menu-leave-to {

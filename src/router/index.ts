@@ -10,9 +10,10 @@ const router = createRouter({
       // the element is missing. Poll for it before resolving (setTimeout, not
       // rAF — throttled/background renderers stall rAF). Sections carry
       // scroll-margin-top to clear the sticky header.
-      const behavior: ScrollOptions['behavior'] = window.matchMedia('(prefers-reduced-motion: reduce)').matches
-        ? 'auto'
-        : 'smooth'
+      // Smooth scrolling never animates in hidden/occluded tabs (it rides on
+      // rAF), so fall back to an instant jump there and for reduced motion.
+      const behavior: ScrollOptions['behavior'] =
+        document.hidden || window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth'
       return new Promise((resolve) => {
         const deadline = Date.now() + 3000
         const attempt = () => {
