@@ -3,14 +3,16 @@ import { onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import Button from 'primevue/button'
 import BrandLogo from '@/components/brand/BrandLogo.vue'
-import { useAuthStore } from '@/stores/auth'
+import { hasStoredSession } from '@/lib/session'
 
 /**
  * Shared public marketing header (landing, pricing, legal pages). Glass, sticky,
  * auth-aware: signed-in visitors get a Dashboard shortcut instead of sign-in/up.
  * Gains a solid background once scrolled and highlights the section in view.
+ * Uses hasStoredSession (not the auth store) so marketing pages don't pull the
+ * Supabase chunk for anonymous visitors.
  */
-const auth = useAuthStore()
+const authed = hasStoredSession()
 const router = useRouter()
 const route = useRoute()
 const mobileOpen = ref(false)
@@ -82,7 +84,7 @@ onBeforeUnmount(() => window.removeEventListener('scroll', onScroll))
       </nav>
 
       <div class="mkt-nav__actions">
-        <template v-if="auth.isAuthenticated">
+        <template v-if="authed">
           <Button label="Go to Dashboard" icon="pi pi-arrow-right" icon-pos="right" @click="go({ name: 'dashboard' })" />
         </template>
         <template v-else>
@@ -108,7 +110,7 @@ onBeforeUnmount(() => window.removeEventListener('scroll', onScroll))
         <router-link :to="{ name: 'pricing' }" @click="mobileOpen = false">Pricing</router-link>
         <router-link :to="{ name: 'landing', hash: '#contact' }" @click="mobileOpen = false">Contact</router-link>
         <div class="mkt-nav__mobile-actions">
-          <template v-if="auth.isAuthenticated">
+          <template v-if="authed">
             <Button label="Go to Dashboard" class="w-full" @click="go({ name: 'dashboard' })" />
           </template>
           <template v-else>

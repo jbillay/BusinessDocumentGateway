@@ -6,7 +6,7 @@ import InputText from 'primevue/inputtext'
 import Textarea from 'primevue/textarea'
 import MarketingNav from '@/components/marketing/MarketingNav.vue'
 import SiteFooter from '@/components/marketing/SiteFooter.vue'
-import { useAuthStore } from '@/stores/auth'
+import { hasStoredSession } from '@/lib/session'
 import { CONTACT_EMAIL } from '@/lib/contact'
 import { PRO_PRICES, TEASER_FREE, TEASER_PRO } from '@/lib/plans'
 
@@ -16,10 +16,9 @@ import { PRO_PRICES, TEASER_FREE, TEASER_PRO } from '@/lib/plans'
  * composes a message via the visitor's mail client (mailto).
  */
 const router = useRouter()
-const auth = useAuthStore()
 
 function getStarted() {
-  router.push(auth.isAuthenticated ? { name: 'dashboard' } : { name: 'register' })
+  router.push(hasStoredSession() ? { name: 'dashboard' } : { name: 'register' })
 }
 
 const STEPS = [

@@ -1,5 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import { useAuthStore } from '@/stores/auth'
+import { hasStoredSession } from '@/lib/session'
 
 const router = createRouter({
   history: createWebHistory(),
@@ -132,6 +132,12 @@ const router = createRouter({
 })
 
 router.beforeEach(async (to) => {
+  // Anonymous visitors on public pages never need the auth/Supabase chunk —
+  // skipping it keeps cold marketing visits light. hasStoredSession is only a
+  // hint; when a token exists the auth store decides whether it's still valid.
+  if (!to.meta.requiresAuth && !hasStoredSession()) return
+
+  const { useAuthStore } = await import('@/stores/auth')
   const auth = useAuthStore()
   await auth.ensureReady()
   if (to.meta.requiresAuth && !auth.isAuthenticated) {

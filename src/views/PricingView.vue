@@ -6,7 +6,7 @@ import SelectButton from 'primevue/selectbutton'
 import Tag from 'primevue/tag'
 import MarketingNav from '@/components/marketing/MarketingNav.vue'
 import SiteFooter from '@/components/marketing/SiteFooter.vue'
-import { useAuthStore } from '@/stores/auth'
+import { hasStoredSession } from '@/lib/session'
 import { PLAN_BUSINESS, PLAN_FREE, PLAN_PRO, PRICING_FAQ, PRO_PRICES } from '@/lib/plans'
 
 /**
@@ -15,7 +15,6 @@ import { PLAN_BUSINESS, PLAN_FREE, PLAN_PRO, PRICING_FAQ, PRO_PRICES } from '@/l
  * landing teaser.
  */
 const router = useRouter()
-const auth = useAuthStore()
 
 const INTERVALS = [
   { label: 'Annual — save 21%', value: 'year' },
@@ -32,7 +31,7 @@ const proPriceNote = computed(() =>
 
 /** Signed-in users go straight to billing; new visitors sign up first. */
 function choosePlan() {
-  if (auth.isAuthenticated) router.push({ name: 'billing' })
+  if (hasStoredSession()) router.push({ name: 'billing' })
   else router.push({ name: 'register' })
 }
 </script>
