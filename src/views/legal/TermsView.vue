@@ -5,13 +5,13 @@ import { CONTACT_EMAIL } from '@/lib/contact'
 
 <template>
   <LegalPage title="Terms of Service" updated="16 July 2026">
+    <!-- TODO(legal): add registered entity name, SIREN, and registered office after counsel review. -->
     <p>
       These Terms of Service (the "<strong>Terms</strong>") govern your access to and use of the Business Document
       Gateway application and related services (the "<strong>Service</strong>"), operated by
-      <strong>[LEGAL ENTITY NAME]</strong>, a company registered in France under number
-      <strong>[SIREN / REGISTRATION NUMBER]</strong>, with its registered office at
-      <strong>[REGISTERED ADDRESS]</strong> ("<strong>we</strong>", "<strong>us</strong>", "<strong>our</strong>"). By
-      creating an account or using the Service, you agree to these Terms. If you do not agree, do not use the Service.
+      <strong>Business Document Gateway</strong>, established in France ("<strong>we</strong>", "<strong>us</strong>",
+      "<strong>our</strong>"). By creating an account or using the Service, you agree to these Terms. If you do not
+      agree, do not use the Service.
     </p>
 
     <h2>1. Definitions</h2>
@@ -131,8 +131,8 @@ import { CONTACT_EMAIL } from '@/lib/contact'
     <h2>15. Governing law and jurisdiction</h2>
     <p>
       These Terms are governed by the laws of France, without regard to conflict-of-law rules. Subject to any mandatory
-      consumer protections that apply to you, the courts of <strong>[COMPETENT COURT / CITY]</strong>, France, will have
-      exclusive jurisdiction over any dispute arising out of or relating to these Terms or the Service.
+      consumer protections that apply to you, the competent French courts will have exclusive jurisdiction over any
+      dispute arising out of or relating to these Terms or the Service.
     </p>
 
     <h2>16. Contact</h2>

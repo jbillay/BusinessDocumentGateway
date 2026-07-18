@@ -4,16 +4,17 @@ import { useRouter } from 'vue-router'
 import Button from 'primevue/button'
 import SelectButton from 'primevue/selectbutton'
 import Tag from 'primevue/tag'
-import BrandLogo from '@/components/brand/BrandLogo.vue'
-import AppFooter from '@/components/layout/AppFooter.vue'
-import { useAuthStore } from '@/stores/auth'
+import MarketingNav from '@/components/marketing/MarketingNav.vue'
+import SiteFooter from '@/components/marketing/SiteFooter.vue'
+import { hasStoredSession } from '@/lib/session'
+import { PLAN_BUSINESS, PLAN_FREE, PLAN_PRO, PRICING_FAQ, PRO_PRICES } from '@/lib/plans'
 
 /**
- * Public pricing page. Annual is the headline price (task 018); limits shown
- * here must match plan_limits() in the database — update both together.
+ * Public pricing page on the shared marketing shell. Annual is the headline
+ * price (task 018); plan data comes from lib/plans.ts, shared with the
+ * landing teaser.
  */
 const router = useRouter()
-const auth = useAuthStore()
 
 const INTERVALS = [
   { label: 'Annual — save 21%', value: 'year' },
@@ -21,54 +22,25 @@ const INTERVALS = [
 ]
 const interval = ref<'month' | 'year'>('year')
 
-const proPrice = computed(() => (interval.value === 'year' ? 15 : 19))
+const proPrice = computed(() => (interval.value === 'year' ? PRO_PRICES.annual : PRO_PRICES.monthly))
 const proPriceNote = computed(() =>
-  interval.value === 'year' ? 'per month, billed annually ($180/year)' : 'per month, billed monthly',
+  interval.value === 'year'
+    ? `per month, billed annually ($${PRO_PRICES.annualTotal}/year)`
+    : 'per month, billed monthly',
 )
 
 /** Signed-in users go straight to billing; new visitors sign up first. */
 function choosePlan() {
-  if (auth.isAuthenticated) router.push({ name: 'billing' })
+  if (hasStoredSession()) router.push({ name: 'billing' })
   else router.push({ name: 'register' })
 }
-
-const FAQ = [
-  {
-    q: 'What counts as an active request?',
-    a: 'A request that is Pending, Awaiting Client, or In Review. Completed and expired requests don’t count — completing or deleting a request frees a slot immediately, so light users never outgrow Free.',
-  },
-  {
-    q: 'What happens when I hit a limit?',
-    a: 'Nothing breaks. Existing requests keep working and your clients can keep uploading — you just can’t open new requests until you free a slot or upgrade.',
-  },
-  {
-    q: 'Can I cancel anytime?',
-    a: 'Yes, in two clicks from the billing page. You keep Pro until the end of the period you paid for, then move back to Free. Your data stays.',
-  },
-  {
-    q: 'Is client data secure on the Free plan?',
-    a: 'Yes. Access codes, link expiry, and the review workflow are included in every plan — security is never paywalled.',
-  },
-]
 </script>
 
 <template>
   <div class="pricing-page">
-    <header class="pricing-nav bdg-glass">
-      <router-link :to="{ name: 'login' }" class="pricing-nav__brand"><BrandLogo :size="30" /></router-link>
-      <div class="pricing-nav__actions">
-        <Button
-          v-if="!auth.isAuthenticated"
-          label="Sign in"
-          text
-          severity="secondary"
-          @click="router.push({ name: 'login' })"
-        />
-        <Button v-else label="Dashboard" text severity="secondary" @click="router.push({ name: 'dashboard' })" />
-      </div>
-    </header>
+    <MarketingNav />
 
-    <main class="pricing-main">
+    <main id="main" class="pricing-main">
       <div class="pricing-hero">
         <h1>Simple pricing for collecting documents</h1>
         <p>Start free forever — no card, no trial clock. Upgrade when your client volume does.</p>
@@ -89,13 +61,9 @@ const FAQ = [
           <div class="pricing-card__price"><span class="amount">$0</span><span class="per">forever</span></div>
           <p class="pricing-card__who">Try the full workflow with real clients.</p>
           <ul class="pricing-card__list">
-            <li><strong>3</strong>&nbsp;active requests</li>
-            <li><strong>1 GB</strong>&nbsp;storage</li>
-            <li><strong>10</strong>&nbsp;library documents</li>
-            <li>Client portal with access code &amp; link expiry</li>
-            <li>Review workflow &amp; ZIP download</li>
-            <li>Manual reminders</li>
-            <li class="is-muted">"Powered by BDG" badge on portals</li>
+            <li v-for="line in PLAN_FREE" :key="line.text" :class="{ 'is-muted': line.muted }">
+              <template v-if="line.strong"><strong>{{ line.strong }}</strong>&nbsp;</template>{{ line.text }}
+            </li>
           </ul>
           <Button label="Start for free" outlined @click="choosePlan" />
         </section>
@@ -110,14 +78,9 @@ const FAQ = [
           </div>
           <p class="pricing-card__who">Solo professionals and small practices running steady client volume.</p>
           <ul class="pricing-card__list">
-            <li><strong>25</strong>&nbsp;active requests</li>
-            <li><strong>25 GB</strong>&nbsp;storage</li>
-            <li><strong>Unlimited</strong>&nbsp;library documents</li>
-            <li>Everything in Free, plus:</li>
-            <li>Custom portal branding — your logo &amp; colours</li>
-            <li>No BDG badge on client portals</li>
-            <li>Automatic scheduled reminders</li>
-            <li>Email support</li>
+            <li v-for="line in PLAN_PRO" :key="line.text" :class="{ 'is-muted': line.muted }">
+              <template v-if="line.strong"><strong>{{ line.strong }}</strong>&nbsp;</template>{{ line.text }}
+            </li>
           </ul>
           <Button label="Upgrade to Pro" @click="choosePlan" />
         </section>
@@ -128,12 +91,9 @@ const FAQ = [
           <div class="pricing-card__price"><span class="amount">Coming soon</span></div>
           <p class="pricing-card__who">For firms running document collection as a core process.</p>
           <ul class="pricing-card__list">
-            <li><strong>100</strong>&nbsp;active requests</li>
-            <li><strong>100 GB</strong>&nbsp;storage</li>
-            <li>Request templates &amp; bulk send</li>
-            <li>Team roles &amp; audit trail</li>
-            <li>API &amp; integrations</li>
-            <li>Priority support + onboarding</li>
+            <li v-for="line in PLAN_BUSINESS" :key="line.text" :class="{ 'is-muted': line.muted }">
+              <template v-if="line.strong"><strong>{{ line.strong }}</strong>&nbsp;</template>{{ line.text }}
+            </li>
           </ul>
           <Button label="Coming soon" outlined disabled />
         </section>
@@ -142,7 +102,7 @@ const FAQ = [
       <section class="pricing-faq">
         <h2>Questions, answered</h2>
         <div class="pricing-faq__grid">
-          <div v-for="item in FAQ" :key="item.q" class="bdg-card pricing-faq__item">
+          <div v-for="item in PRICING_FAQ" :key="item.q" class="bdg-card pricing-faq__item">
             <h3>{{ item.q }}</h3>
             <p>{{ item.a }}</p>
           </div>
@@ -150,7 +110,7 @@ const FAQ = [
       </section>
     </main>
 
-    <AppFooter />
+    <SiteFooter />
   </div>
 </template>
 
@@ -159,18 +119,6 @@ const FAQ = [
   min-height: 100vh;
   display: flex;
   flex-direction: column;
-}
-.pricing-nav {
-  position: sticky;
-  top: 0;
-  z-index: 100;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0.625rem 1.5rem;
-}
-.pricing-nav__brand {
-  text-decoration: none;
 }
 .pricing-main {
   flex: 1;

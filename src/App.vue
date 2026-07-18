@@ -6,6 +6,8 @@ import CookieSettingsDialog from '@/components/legal/CookieSettingsDialog.vue'
 </script>
 
 <template>
+  <!-- Keyboard users jump straight past the sticky nav; views expose id="main". -->
+  <a class="bdg-skip-link" href="#main">Skip to content</a>
   <Toast position="top-right" />
   <ConfirmDialog />
   <!--

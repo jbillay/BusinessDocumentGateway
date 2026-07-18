@@ -17,19 +17,12 @@ defineProps<{
 <template>
   <div class="legal-page">
     <MarketingNav />
-    <main class="legal-page__main">
+    <main id="main" class="legal-page__main">
       <article class="legal-prose">
         <header class="legal-prose__head">
           <h1>{{ title }}</h1>
           <p class="legal-prose__meta">Last updated: {{ updated }}</p>
         </header>
-        <div class="legal-prose__placeholder-note">
-          <i class="pi pi-info-circle" />
-          <span>
-            This template must be reviewed by qualified legal counsel and completed with your registered company
-            details before you rely on it commercially. Placeholders appear in <code>[BRACKETS]</code>.
-          </span>
-        </div>
         <slot />
       </article>
     </main>
@@ -64,29 +57,6 @@ defineProps<{
   color: #94a3b8;
   font-size: 0.875rem;
 }
-.legal-prose__placeholder-note {
-  display: flex;
-  gap: 0.625rem;
-  align-items: flex-start;
-  padding: 0.875rem 1.125rem;
-  margin-bottom: 2rem;
-  background: #fffbeb;
-  border: 1px solid #fde68a;
-  border-radius: 0.75rem;
-  color: #92400e;
-  font-size: 0.85rem;
-  line-height: 1.5;
-}
-.legal-prose__placeholder-note i {
-  margin-top: 0.15rem;
-}
-.legal-prose__placeholder-note code {
-  background: rgba(146, 64, 14, 0.1);
-  padding: 0.05rem 0.3rem;
-  border-radius: 0.25rem;
-  font-size: 0.8rem;
-}
-
 /* Prose styling applied to slotted content (deep, since it's unscoped markup). */
 .legal-prose :deep(h2) {
   margin: 2.25rem 0 0.75rem;

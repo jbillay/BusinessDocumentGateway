@@ -8,7 +8,7 @@ import { CONTACT_EMAIL } from '@/lib/contact'
     <p>
       This Data Processing Agreement ("<strong>DPA</strong>") forms part of the
       <router-link :to="{ name: 'terms' }">Terms of Service</router-link> between
-      <strong>[LEGAL ENTITY NAME]</strong> ("<strong>Processor</strong>", "<strong>we</strong>") and the Account Owner
+      <strong>Business Document Gateway</strong> ("<strong>Processor</strong>", "<strong>we</strong>") and the Account Owner
       ("<strong>Controller</strong>", "<strong>you</strong>"). It governs the processing of personal data that we carry
       out on your behalf when you use the Business Document Gateway service (the "<strong>Service</strong>") to collect
       Documents from your clients. It reflects the requirements of Article 28 of the GDPR / RGPD.

@@ -40,6 +40,29 @@ h3 {
   color: var(--bdg-deep);
 }
 
+/* Visible keyboard focus everywhere (PrimeVue supplies its own on widgets). */
+:focus-visible {
+  outline: 2px solid var(--bdg-blue);
+  outline-offset: 2px;
+}
+
+/* Skip link: visually hidden until focused. */
+.bdg-skip-link {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  z-index: 1000;
+  background: var(--bdg-deep);
+  color: #ffffff;
+  font-weight: 600;
+  text-decoration: none;
+  padding: 0.625rem 1.125rem;
+  border-radius: 0 0 0.5rem 0;
+}
+.bdg-skip-link:focus {
+  left: 0;
+}
+
 /* Page-enter animation (CSS-only; see App.vue for why no <transition> is used) */
 @media (prefers-reduced-motion: no-preference) {
   #app > *:not(.p-toast):not(.p-confirmdialog) {

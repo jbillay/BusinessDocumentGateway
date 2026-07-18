@@ -23,8 +23,8 @@ const year = new Date().getFullYear()
 
       <nav class="site-footer__col" aria-label="Product">
         <h3 class="site-footer__heading">Product</h3>
-        <router-link :to="{ name: 'landing', hash: '#features' }">Features</router-link>
         <router-link :to="{ name: 'landing', hash: '#how' }">How it works</router-link>
+        <router-link :to="{ name: 'landing', hash: '#features' }">Features</router-link>
         <router-link :to="{ name: 'pricing' }">Pricing</router-link>
         <router-link :to="{ name: 'landing', hash: '#contact' }">Contact us</router-link>
       </nav>

@@ -1,0 +1,13 @@
+User-agent: *
+Allow: /
+Disallow: /dashboard
+Disallow: /requests/
+Disallow: /portal/
+Disallow: /portal-settings
+Disallow: /billing
+Disallow: /profile
+Disallow: /library
+Disallow: /login
+Disallow: /register
+
+Sitemap: https://business-document-gateway.vercel.app/sitemap.xml
