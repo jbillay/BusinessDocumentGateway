@@ -4,7 +4,25 @@ import { useAuthStore } from '@/stores/auth'
 const router = createRouter({
   history: createWebHistory(),
   scrollBehavior(to, _from, savedPosition) {
-    if (to.hash) return { el: to.hash, behavior: 'smooth', top: 72 }
+    if (to.hash) {
+      // Marketing views are lazy-loaded: the target section doesn't exist until
+      // the async component has rendered, and vue-router gives up silently if
+      // the element is missing. Poll for it before resolving (setTimeout, not
+      // rAF — throttled/background renderers stall rAF). Sections carry
+      // scroll-margin-top to clear the sticky header.
+      const behavior: ScrollOptions['behavior'] = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+        ? 'auto'
+        : 'smooth'
+      return new Promise((resolve) => {
+        const deadline = Date.now() + 3000
+        const attempt = () => {
+          if (document.querySelector(to.hash)) resolve({ el: to.hash, behavior })
+          else if (Date.now() > deadline) resolve({ top: 0 })
+          else setTimeout(attempt, 50)
+        }
+        attempt()
+      })
+    }
     if (savedPosition) return savedPosition
     return { top: 0 }
   },
@@ -104,8 +122,11 @@ const router = createRouter({
       component: () => import('@/views/PortalView.vue'),
     },
     {
+      // Branded 404 on the marketing shell — a mistyped campaign link must not
+      // dump prospects on the login screen.
       path: '/:pathMatch(.*)*',
-      redirect: '/dashboard',
+      name: 'not-found',
+      component: () => import('@/views/NotFoundView.vue'),
     },
   ],
 })

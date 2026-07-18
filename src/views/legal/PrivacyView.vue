@@ -6,7 +6,7 @@ import { CONTACT_EMAIL } from '@/lib/contact'
 <template>
   <LegalPage title="Privacy Policy" updated="16 July 2026">
     <p>
-      This Privacy Policy explains how <strong>[LEGAL ENTITY NAME]</strong> ("<strong>we</strong>",
+      This Privacy Policy explains how <strong>Business Document Gateway</strong> ("<strong>we</strong>",
       "<strong>us</strong>") collects and uses personal data when you use the Business Document Gateway service (the
       "<strong>Service</strong>"). We are committed to protecting your privacy in accordance with the EU General Data
       Protection Regulation (GDPR / RGPD) and applicable French law.
@@ -14,8 +14,9 @@ import { CONTACT_EMAIL } from '@/lib/contact'
 
     <h2>1. Controller</h2>
     <p>
+      <!-- TODO(legal): add registered entity name and address after counsel review. -->
       For personal data relating to Account Owners and visitors to our website, the data controller is
-      <strong>[LEGAL ENTITY NAME]</strong>, <strong>[REGISTERED ADDRESS]</strong>. You can reach us at
+      <strong>Business Document Gateway</strong>, established in France. You can reach us at
       <a :href="`mailto:${CONTACT_EMAIL}`">{{ CONTACT_EMAIL }}</a>.
     </p>
     <p>

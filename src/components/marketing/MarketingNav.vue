@@ -26,9 +26,10 @@ function go(to: Parameters<typeof router.push>[0]) {
         <BrandLogo :size="30" />
       </router-link>
 
+      <!-- Link order mirrors the landing page's section order. -->
       <nav class="mkt-nav__links" aria-label="Primary">
-        <router-link :to="{ name: 'landing', hash: '#features' }">Features</router-link>
         <router-link :to="{ name: 'landing', hash: '#how' }">How it works</router-link>
+        <router-link :to="{ name: 'landing', hash: '#features' }">Features</router-link>
         <router-link :to="{ name: 'pricing' }">Pricing</router-link>
         <router-link :to="{ name: 'landing', hash: '#contact' }">Contact</router-link>
       </nav>
@@ -55,8 +56,8 @@ function go(to: Parameters<typeof router.push>[0]) {
 
     <Transition name="mkt-menu">
       <nav v-if="mobileOpen" class="mkt-nav__mobile" aria-label="Mobile">
-        <router-link :to="{ name: 'landing', hash: '#features' }" @click="mobileOpen = false">Features</router-link>
         <router-link :to="{ name: 'landing', hash: '#how' }" @click="mobileOpen = false">How it works</router-link>
+        <router-link :to="{ name: 'landing', hash: '#features' }" @click="mobileOpen = false">Features</router-link>
         <router-link :to="{ name: 'pricing' }" @click="mobileOpen = false">Pricing</router-link>
         <router-link :to="{ name: 'landing', hash: '#contact' }" @click="mobileOpen = false">Contact</router-link>
         <div class="mkt-nav__mobile-actions">

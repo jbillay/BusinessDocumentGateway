@@ -532,6 +532,10 @@ function submitContact() {
 .section {
   padding: 4.5rem 0;
 }
+/* Anchor targets clear the sticky header when scrolled to. */
+.section[id] {
+  scroll-margin-top: 4.5rem;
+}
 .section--alt {
   background: #ffffff;
   border-top: 1px solid var(--bdg-border);

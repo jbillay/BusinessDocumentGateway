@@ -4,13 +4,14 @@ import { useRouter } from 'vue-router'
 import Button from 'primevue/button'
 import SelectButton from 'primevue/selectbutton'
 import Tag from 'primevue/tag'
-import BrandLogo from '@/components/brand/BrandLogo.vue'
-import AppFooter from '@/components/layout/AppFooter.vue'
+import MarketingNav from '@/components/marketing/MarketingNav.vue'
+import SiteFooter from '@/components/marketing/SiteFooter.vue'
 import { useAuthStore } from '@/stores/auth'
 
 /**
- * Public pricing page. Annual is the headline price (task 018); limits shown
- * here must match plan_limits() in the database — update both together.
+ * Public pricing page on the shared marketing shell. Annual is the headline
+ * price (task 018); limits shown here must match plan_limits() in the
+ * database — update both together.
  */
 const router = useRouter()
 const auth = useAuthStore()
@@ -54,21 +55,9 @@ const FAQ = [
 
 <template>
   <div class="pricing-page">
-    <header class="pricing-nav bdg-glass">
-      <router-link :to="{ name: 'login' }" class="pricing-nav__brand"><BrandLogo :size="30" /></router-link>
-      <div class="pricing-nav__actions">
-        <Button
-          v-if="!auth.isAuthenticated"
-          label="Sign in"
-          text
-          severity="secondary"
-          @click="router.push({ name: 'login' })"
-        />
-        <Button v-else label="Dashboard" text severity="secondary" @click="router.push({ name: 'dashboard' })" />
-      </div>
-    </header>
+    <MarketingNav />
 
-    <main class="pricing-main">
+    <main id="main" class="pricing-main">
       <div class="pricing-hero">
         <h1>Simple pricing for collecting documents</h1>
         <p>Start free forever — no card, no trial clock. Upgrade when your client volume does.</p>
@@ -150,7 +139,7 @@ const FAQ = [
       </section>
     </main>
 
-    <AppFooter />
+    <SiteFooter />
   </div>
 </template>
 
@@ -159,18 +148,6 @@ const FAQ = [
   min-height: 100vh;
   display: flex;
   flex-direction: column;
-}
-.pricing-nav {
-  position: sticky;
-  top: 0;
-  z-index: 100;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0.625rem 1.5rem;
-}
-.pricing-nav__brand {
-  text-decoration: none;
 }
 .pricing-main {
   flex: 1;
