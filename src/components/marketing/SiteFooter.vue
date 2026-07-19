@@ -91,6 +91,8 @@ const year = new Date().getFullYear()
   line-height: 1.55;
 }
 .site-footer__email {
+  display: inline-block;
+  padding: 0.3rem 0;
   color: var(--bdg-blue);
   text-decoration: none;
   font-size: 0.9rem;
@@ -102,7 +104,8 @@ const year = new Date().getFullYear()
 .site-footer__col {
   display: flex;
   flex-direction: column;
-  gap: 0.625rem;
+  align-items: flex-start;
+  gap: 0.125rem;
 }
 .site-footer__heading {
   margin: 0 0 0.25rem;
@@ -114,6 +117,9 @@ const year = new Date().getFullYear()
 }
 .site-footer__col a,
 .site-footer__linkbtn {
+  /* Padding (not column gap) provides the ≥24px hit area per link. */
+  display: inline-block;
+  padding: 0.3rem 0;
   color: #475569;
   text-decoration: none;
   font-size: 0.9rem;
@@ -126,7 +132,6 @@ const year = new Date().getFullYear()
 .site-footer__linkbtn {
   background: none;
   border: none;
-  padding: 0;
   text-align: left;
   cursor: pointer;
   font: inherit;

@@ -94,6 +94,31 @@ const BENEFITS = [
   },
 ]
 
+// Truthful trust signals only — practices we actually ship today, no
+// certifications or customer counts we don't have.
+const TRUST = [
+  {
+    icon: 'pi pi-lock',
+    label: 'Encrypted in transit',
+    detail: 'Every portal link and upload travels over HTTPS.',
+  },
+  {
+    icon: 'pi pi-globe',
+    label: 'EU data hosting',
+    detail: 'Documents are stored in the EU (eu-west-1).',
+  },
+  {
+    icon: 'pi pi-key',
+    label: 'Access codes & expiring links',
+    detail: 'You decide who gets in, and for how long.',
+  },
+  {
+    icon: 'pi pi-database',
+    label: 'Per-account isolation',
+    detail: 'Your clients’ files are visible to your account alone.',
+  },
+]
+
 // Two objection-killers surfaced from the pricing FAQ, shown near the CTA.
 const FAQ_TEASER = [PRICING_FAQ[3], PRICING_FAQ[1]]
 
@@ -269,6 +294,16 @@ async function submitContact() {
             </div>
           </div>
         </div>
+        <!-- Trust strip: the security practices behind the pitch, right before the pricing ask. -->
+        <ul class="trust bdg-card" aria-label="Security practices">
+          <li v-for="t in TRUST" :key="t.label" class="trust__item">
+            <i :class="t.icon" aria-hidden="true" />
+            <div>
+              <strong>{{ t.label }}</strong>
+              <span>{{ t.detail }}</span>
+            </div>
+          </li>
+        </ul>
       </div>
     </section>
 
@@ -306,19 +341,9 @@ async function submitContact() {
       </div>
     </section>
 
-    <!-- Final CTA -->
-    <section class="cta">
-      <div class="cta__inner">
-        <h2>Ready to stop chasing documents?</h2>
-        <p>Create your first request in minutes — free, no card required.</p>
-        <button type="button" class="bdg-btn bdg-btn--lg cta__btn" @click="getStarted">
-          Get started free <i class="pi pi-arrow-right" />
-        </button>
-      </div>
-    </section>
-
-    <!-- FAQ teaser: the two objections most likely to stall a signup -->
-    <section class="section section--alt faq">
+    <!-- FAQ teaser: objections answered BEFORE the final ask, so the CTA lands
+         on reassurance rather than interrupting it. -->
+    <section class="section faq">
       <div class="section__inner">
         <header class="section__head">
           <span class="bdg-label-sm">Good to know</span>
@@ -333,6 +358,17 @@ async function submitContact() {
         <p class="faq__more">
           <router-link :to="{ name: 'pricing' }">More questions answered on the pricing page →</router-link>
         </p>
+      </div>
+    </section>
+
+    <!-- Final CTA -->
+    <section class="cta">
+      <div class="cta__inner">
+        <h2>Ready to stop chasing documents?</h2>
+        <p>Create your first request in minutes — free, no card required.</p>
+        <button type="button" class="bdg-btn bdg-btn--lg cta__btn" @click="getStarted">
+          Start for free <i class="pi pi-arrow-right" />
+        </button>
       </div>
     </section>
 
@@ -814,6 +850,37 @@ async function submitContact() {
   line-height: 1.6;
 }
 
+/* ---- Trust strip ---- */
+.trust {
+  list-style: none;
+  margin: 3rem 0 0;
+  padding: 1.5rem 1.75rem;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1.25rem;
+}
+.trust__item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+}
+.trust__item i {
+  color: #0891b2;
+  font-size: 1.1rem;
+  margin-top: 0.15rem;
+}
+.trust__item strong {
+  display: block;
+  margin-bottom: 0.15rem;
+  font-size: 0.9rem;
+  color: var(--bdg-deep);
+}
+.trust__item span {
+  font-size: 0.825rem;
+  color: #64748b;
+  line-height: 1.45;
+}
+
 /* ---- Pricing teaser ---- */
 .plans {
   display: grid;
@@ -1025,7 +1092,8 @@ async function submitContact() {
     transform: none;
   }
   .features,
-  .benefits {
+  .benefits,
+  .trust {
     grid-template-columns: 1fr 1fr;
   }
   /* Stacked steps: one column, arrows turn downward in the row gaps. */
@@ -1052,6 +1120,7 @@ async function submitContact() {
   .metrics__inner,
   .features,
   .benefits,
+  .trust,
   .plans,
   .faq__grid {
     grid-template-columns: 1fr;

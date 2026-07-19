@@ -95,7 +95,7 @@ onBeforeUnmount(() => window.removeEventListener('scroll', onScroll))
         </template>
         <template v-else>
           <router-link class="bdg-btn bdg-btn--ghost mkt-nav__signin" :to="{ name: 'login' }">Sign in</router-link>
-          <router-link class="bdg-btn bdg-btn--primary" :to="{ name: 'register' }">Get started</router-link>
+          <router-link class="bdg-btn bdg-btn--primary" :to="{ name: 'register' }">Start for free</router-link>
         </template>
       </div>
 
@@ -132,7 +132,7 @@ onBeforeUnmount(() => window.removeEventListener('scroll', onScroll))
               Sign in
             </router-link>
             <router-link class="bdg-btn bdg-btn--primary bdg-btn--block" :to="{ name: 'register' }" @click="mobileOpen = false">
-              Get started
+              Start for free
             </router-link>
           </template>
         </div>
@@ -169,10 +169,13 @@ onBeforeUnmount(() => window.removeEventListener('scroll', onScroll))
 .mkt-nav__links {
   display: flex;
   align-items: center;
-  gap: 1.75rem;
+  gap: 1.25rem;
   margin: 0 auto;
 }
 .mkt-nav__links a {
+  /* Padded to a ≥40px hit area (WCAG 2.5.8); gap shrinks to keep the rhythm. */
+  display: inline-block;
+  padding: 0.7rem 0.25rem;
   color: #475569;
   text-decoration: none;
   font-size: 0.925rem;
