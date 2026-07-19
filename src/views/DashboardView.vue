@@ -10,6 +10,7 @@ import InputText from 'primevue/inputtext'
 import IconField from 'primevue/iconfield'
 import InputIcon from 'primevue/inputicon'
 import MultiSelect from 'primevue/multiselect'
+import Menu from 'primevue/menu'
 import Button from 'primevue/button'
 import Tag from 'primevue/tag'
 import ProgressBar from 'primevue/progressbar'
@@ -70,6 +71,23 @@ onUnmounted(() => {
 
 function openDetail(request: DocumentRequest) {
   router.push({ name: 'request-detail', params: { id: request.id } })
+}
+
+/* One shared overflow menu serves every row; the clicked row is captured on
+ * toggle. Keeps the destructive action off the row surface entirely. */
+const rowMenu = ref<InstanceType<typeof Menu>>()
+const menuRequest = ref<DocumentRequest | null>(null)
+const rowMenuItems = [
+  { label: 'Edit request', icon: 'pi pi-pencil', command: () => menuRequest.value && openEdit(menuRequest.value) },
+  { label: 'Copy portal link', icon: 'pi pi-link', command: () => menuRequest.value && copyPortalLink(menuRequest.value) },
+  { label: 'Download documents', icon: 'pi pi-download', command: () => menuRequest.value && download(menuRequest.value) },
+  { separator: true },
+  { label: 'Delete request', icon: 'pi pi-trash', command: () => menuRequest.value && confirmDelete(menuRequest.value) },
+]
+
+function openRowMenu(event: Event, request: DocumentRequest) {
+  menuRequest.value = request
+  rowMenu.value?.toggle(event)
 }
 
 function openCreate() {
@@ -288,17 +306,24 @@ function lastActivity(request: DocumentRequest): string {
                 <span class="text-sm" style="color: #64748b">{{ lastActivity(data) }}</span>
               </template>
             </Column>
-            <Column header="">
+            <Column header="" style="width: 4rem">
               <template #body="{ data }">
-                <div class="flex gap-1 justify-content-end" @click.stop>
-                  <Button icon="pi pi-pencil" text rounded severity="secondary" v-tooltip.top="'Edit request'" @click="openEdit(data)" />
-                  <Button icon="pi pi-link" text rounded severity="secondary" v-tooltip.top="'Copy portal link'" @click="copyPortalLink(data)" />
-                  <Button icon="pi pi-download" text rounded severity="secondary" v-tooltip.top="'Download documents'" @click="download(data)" />
-                  <Button icon="pi pi-trash" text rounded severity="danger" v-tooltip.top="'Delete request'" @click="confirmDelete(data)" />
+                <div class="flex justify-content-end" @click.stop>
+                  <Button
+                    icon="pi pi-ellipsis-v"
+                    text
+                    rounded
+                    severity="secondary"
+                    aria-haspopup="true"
+                    aria-controls="request-row-menu"
+                    aria-label="Request actions"
+                    @click="openRowMenu($event, data)"
+                  />
                 </div>
               </template>
             </Column>
           </DataTable>
+          <Menu ref="rowMenu" id="request-row-menu" :model="rowMenuItems" popup />
         </section>
       </div>
 
