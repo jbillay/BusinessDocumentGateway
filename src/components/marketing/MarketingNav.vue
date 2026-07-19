@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
-import Button from 'primevue/button'
+import { useRoute } from 'vue-router'
 import BrandLogo from '@/components/brand/BrandLogo.vue'
 import { hasStoredSession } from '@/lib/session'
 
@@ -9,18 +8,14 @@ import { hasStoredSession } from '@/lib/session'
  * Shared public marketing header (landing, pricing, legal pages). Glass, sticky,
  * auth-aware: signed-in visitors get a Dashboard shortcut instead of sign-in/up.
  * Gains a solid background once scrolled and highlights the section in view.
- * Uses hasStoredSession (not the auth store) so marketing pages don't pull the
- * Supabase chunk for anonymous visitors.
+ * Uses hasStoredSession (not the auth store) and native elements (not PrimeVue)
+ * so marketing pages stay light for anonymous visitors. Hash links render
+ * through the RouterLink slot API so aria-current is driven by the scrollspy
+ * instead of being stamped on every landing link at once.
  */
 const authed = hasStoredSession()
-const router = useRouter()
 const route = useRoute()
 const mobileOpen = ref(false)
-
-function go(to: Parameters<typeof router.push>[0]) {
-  mobileOpen.value = false
-  router.push(to)
-}
 
 // Scrolled state + scrollspy. Plain scroll listener (not IntersectionObserver /
 // rAF, which stall in throttled renderers); cheap enough at 4 lookups per event.
@@ -58,38 +53,49 @@ onBeforeUnmount(() => window.removeEventListener('scroll', onScroll))
 
       <!-- Link order mirrors the landing page's section order. -->
       <nav class="mkt-nav__links" aria-label="Primary">
-        <router-link
-          :to="{ name: 'landing', hash: '#how' }"
-          :class="{ 'is-active': activeSection === 'how' }"
-          :aria-current="activeSection === 'how' ? 'location' : undefined"
-          >How it works</router-link
-        >
-        <router-link
-          :to="{ name: 'landing', hash: '#features' }"
-          :class="{ 'is-active': activeSection === 'features' }"
-          :aria-current="activeSection === 'features' ? 'location' : undefined"
-          >Features</router-link
-        >
+        <router-link :to="{ name: 'landing', hash: '#how' }" custom v-slot="{ href, navigate }">
+          <a
+            :href="href"
+            :class="{ 'is-active': activeSection === 'how' }"
+            :aria-current="activeSection === 'how' ? 'location' : undefined"
+            @click="navigate"
+            >How it works</a
+          >
+        </router-link>
+        <router-link :to="{ name: 'landing', hash: '#features' }" custom v-slot="{ href, navigate }">
+          <a
+            :href="href"
+            :class="{ 'is-active': activeSection === 'features' }"
+            :aria-current="activeSection === 'features' ? 'location' : undefined"
+            @click="navigate"
+            >Features</a
+          >
+        </router-link>
         <router-link
           :to="{ name: 'pricing' }"
           :class="{ 'is-active': activeSection === 'pricing' || route.name === 'pricing' }"
           >Pricing</router-link
         >
-        <router-link
-          :to="{ name: 'landing', hash: '#contact' }"
-          :class="{ 'is-active': activeSection === 'contact' }"
-          :aria-current="activeSection === 'contact' ? 'location' : undefined"
-          >Contact</router-link
-        >
+        <router-link :to="{ name: 'landing', hash: '#contact' }" custom v-slot="{ href, navigate }">
+          <a
+            :href="href"
+            :class="{ 'is-active': activeSection === 'contact' }"
+            :aria-current="activeSection === 'contact' ? 'location' : undefined"
+            @click="navigate"
+            >Contact</a
+          >
+        </router-link>
       </nav>
 
       <div class="mkt-nav__actions">
         <template v-if="authed">
-          <Button label="Go to Dashboard" icon="pi pi-arrow-right" icon-pos="right" @click="go({ name: 'dashboard' })" />
+          <router-link class="bdg-btn bdg-btn--primary" :to="{ name: 'dashboard' }">
+            Go to Dashboard <i class="pi pi-arrow-right" />
+          </router-link>
         </template>
         <template v-else>
-          <Button label="Sign in" text severity="secondary" class="mkt-nav__signin" @click="go({ name: 'login' })" />
-          <Button label="Get started" @click="go({ name: 'register' })" />
+          <router-link class="bdg-btn bdg-btn--ghost mkt-nav__signin" :to="{ name: 'login' }">Sign in</router-link>
+          <router-link class="bdg-btn bdg-btn--primary" :to="{ name: 'register' }">Get started</router-link>
         </template>
       </div>
 
@@ -105,17 +111,29 @@ onBeforeUnmount(() => window.removeEventListener('scroll', onScroll))
 
     <Transition name="mkt-menu">
       <nav v-if="mobileOpen" class="mkt-nav__mobile" aria-label="Mobile">
-        <router-link :to="{ name: 'landing', hash: '#how' }" @click="mobileOpen = false">How it works</router-link>
-        <router-link :to="{ name: 'landing', hash: '#features' }" @click="mobileOpen = false">Features</router-link>
+        <router-link :to="{ name: 'landing', hash: '#how' }" custom v-slot="{ href, navigate }">
+          <a :href="href" @click="(e) => { mobileOpen = false; navigate(e) }">How it works</a>
+        </router-link>
+        <router-link :to="{ name: 'landing', hash: '#features' }" custom v-slot="{ href, navigate }">
+          <a :href="href" @click="(e) => { mobileOpen = false; navigate(e) }">Features</a>
+        </router-link>
         <router-link :to="{ name: 'pricing' }" @click="mobileOpen = false">Pricing</router-link>
-        <router-link :to="{ name: 'landing', hash: '#contact' }" @click="mobileOpen = false">Contact</router-link>
+        <router-link :to="{ name: 'landing', hash: '#contact' }" custom v-slot="{ href, navigate }">
+          <a :href="href" @click="(e) => { mobileOpen = false; navigate(e) }">Contact</a>
+        </router-link>
         <div class="mkt-nav__mobile-actions">
           <template v-if="authed">
-            <Button label="Go to Dashboard" class="w-full" @click="go({ name: 'dashboard' })" />
+            <router-link class="bdg-btn bdg-btn--primary bdg-btn--block" :to="{ name: 'dashboard' }" @click="mobileOpen = false">
+              Go to Dashboard
+            </router-link>
           </template>
           <template v-else>
-            <Button label="Sign in" outlined class="w-full" @click="go({ name: 'login' })" />
-            <Button label="Get started" class="w-full" @click="go({ name: 'register' })" />
+            <router-link class="bdg-btn bdg-btn--outlined bdg-btn--block" :to="{ name: 'login' }" @click="mobileOpen = false">
+              Sign in
+            </router-link>
+            <router-link class="bdg-btn bdg-btn--primary bdg-btn--block" :to="{ name: 'register' }" @click="mobileOpen = false">
+              Get started
+            </router-link>
           </template>
         </div>
       </nav>

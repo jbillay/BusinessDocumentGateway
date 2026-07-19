@@ -15,7 +15,17 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { dirname, extname, join, resolve } from 'node:path'
 
 const DIST = resolve(process.cwd(), 'dist')
-const ROUTES = ['/', '/pricing', '/legal/terms', '/legal/privacy', '/legal/dpa', '/legal/cookies']
+const ROUTES = [
+  '/',
+  '/pricing',
+  '/guides/how-to-collect-documents-from-clients',
+  '/guides/new-client-onboarding-document-checklist',
+  '/guides/secure-alternatives-to-email-attachments',
+  '/legal/terms',
+  '/legal/privacy',
+  '/legal/dpa',
+  '/legal/cookies',
+]
 
 const MIME = {
   '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml',
@@ -64,6 +74,12 @@ async function main() {
     console.warn('[prerender] dist/index.html not found — run vite build first. Skipping.')
     return
   }
+  // Always keep a pristine (un-prerendered) copy of the app shell. vercel.json
+  // rewrites unknown paths to /_shell.html so a bad URL renders the neutral
+  // shell (then the client 404) instead of flashing prerendered landing
+  // content. Written before the Chrome check so the rewrite target exists even
+  // when prerendering soft-fails.
+  await writeFile(join(DIST, '_shell.html'), await readFile(join(DIST, 'index.html')))
   const chrome = findChrome()
   if (!chrome) {
     console.warn('[prerender] No Chrome/Edge found on this machine — skipping (CSR build ships as-is).')

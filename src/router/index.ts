@@ -95,6 +95,22 @@ const router = createRouter({
       name: 'pricing',
       component: () => import('@/views/PricingView.vue'),
     },
+    // Public SEO guide pages (linked from the footer Resources column).
+    {
+      path: '/guides/how-to-collect-documents-from-clients',
+      name: 'guide-collect',
+      component: () => import('@/views/guides/CollectDocumentsGuideView.vue'),
+    },
+    {
+      path: '/guides/new-client-onboarding-document-checklist',
+      name: 'guide-checklist',
+      component: () => import('@/views/guides/OnboardingChecklistGuideView.vue'),
+    },
+    {
+      path: '/guides/secure-alternatives-to-email-attachments',
+      name: 'guide-secure',
+      component: () => import('@/views/guides/SecureSharingGuideView.vue'),
+    },
     // Public legal pages (accessible signed-in or out; linked from the footer).
     {
       path: '/legal/terms',

@@ -137,6 +137,101 @@ h3 {
   font-weight: 600;
 }
 
+/* Native button system for marketing pages (keeps them PrimeVue-free). */
+.bdg-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  font: inherit;
+  font-size: 0.95rem;
+  font-weight: 600;
+  line-height: 1.2;
+  padding: 0.7rem 1.3rem;
+  border-radius: 0.6rem;
+  border: 1px solid transparent;
+  cursor: pointer;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.bdg-btn--primary {
+  background: var(--bdg-blue);
+  border-color: var(--bdg-blue);
+  color: #ffffff;
+}
+.bdg-btn--primary:hover {
+  background: #2563eb;
+  border-color: #2563eb;
+}
+.bdg-btn--outlined {
+  background: transparent;
+  border-color: var(--bdg-blue);
+  color: var(--bdg-blue);
+}
+.bdg-btn--outlined:hover {
+  background: rgba(59, 130, 246, 0.08);
+}
+.bdg-btn--ghost {
+  background: transparent;
+  color: #475569;
+}
+.bdg-btn--ghost:hover {
+  background: #f1f5f9;
+  color: var(--bdg-deep);
+}
+.bdg-btn--lg {
+  font-size: 1.02rem;
+  padding: 0.85rem 1.6rem;
+}
+.bdg-btn--block {
+  width: 100%;
+}
+.bdg-btn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+.bdg-btn i {
+  font-size: 0.9em;
+}
+
+/* Native text inputs for marketing forms (PrimeVue-free). */
+.bdg-input {
+  width: 100%;
+  font: inherit;
+  font-size: 0.95rem;
+  color: var(--bdg-deep);
+  background: #ffffff;
+  border: 1px solid var(--bdg-border);
+  border-radius: 0.6rem;
+  padding: 0.65rem 0.8rem;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.bdg-input:focus {
+  outline: none;
+  border-color: var(--bdg-blue);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+}
+.bdg-input--invalid {
+  border-color: #ba1a1a;
+}
+textarea.bdg-input {
+  resize: vertical;
+  min-height: 6.5rem;
+}
+.bdg-field small.bdg-error {
+  color: #ba1a1a;
+  font-size: 0.8rem;
+}
+/* Honeypot field: parked far off-screen, invisible to humans, filled by bots. */
+.bdg-honeypot {
+  position: absolute;
+  left: -9999px;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+}
+
 /* Full-width PrimeVue inputs inside forms */
 .bdg-field {
   display: flex;

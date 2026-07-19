@@ -21,12 +21,27 @@ const year = new Date().getFullYear()
         <a class="site-footer__email" :href="`mailto:${CONTACT_EMAIL}`">{{ CONTACT_EMAIL }}</a>
       </div>
 
+      <!-- Hash links render as plain anchors (custom slot) so vue-router doesn't
+           stamp aria-current="page" on all of them at once while on the landing page. -->
       <nav class="site-footer__col" aria-label="Product">
         <h3 class="site-footer__heading">Product</h3>
-        <router-link :to="{ name: 'landing', hash: '#how' }">How it works</router-link>
-        <router-link :to="{ name: 'landing', hash: '#features' }">Features</router-link>
+        <router-link :to="{ name: 'landing', hash: '#how' }" custom v-slot="{ href, navigate }">
+          <a :href="href" @click="navigate">How it works</a>
+        </router-link>
+        <router-link :to="{ name: 'landing', hash: '#features' }" custom v-slot="{ href, navigate }">
+          <a :href="href" @click="navigate">Features</a>
+        </router-link>
         <router-link :to="{ name: 'pricing' }">Pricing</router-link>
-        <router-link :to="{ name: 'landing', hash: '#contact' }">Contact us</router-link>
+        <router-link :to="{ name: 'landing', hash: '#contact' }" custom v-slot="{ href, navigate }">
+          <a :href="href" @click="navigate">Contact us</a>
+        </router-link>
+      </nav>
+
+      <nav class="site-footer__col" aria-label="Resources">
+        <h3 class="site-footer__heading">Resources</h3>
+        <router-link :to="{ name: 'guide-collect' }">Collecting documents from clients</router-link>
+        <router-link :to="{ name: 'guide-checklist' }">Onboarding document checklist</router-link>
+        <router-link :to="{ name: 'guide-secure' }">Secure file-sharing guide</router-link>
       </nav>
 
       <nav class="site-footer__col" aria-label="Account">
@@ -63,7 +78,7 @@ const year = new Date().getFullYear()
   margin: 0 auto;
   padding: 3rem 1.5rem 2.5rem;
   display: grid;
-  grid-template-columns: 1.6fr 1fr 1fr 1.2fr;
+  grid-template-columns: 1.5fr 0.9fr 1.3fr 0.9fr 1.2fr;
   gap: 2rem;
 }
 .site-footer__brand {
@@ -130,7 +145,7 @@ const year = new Date().getFullYear()
   color: #94a3b8;
 }
 
-@media (max-width: 820px) {
+@media (max-width: 980px) {
   .site-footer__inner {
     grid-template-columns: 1fr 1fr;
     gap: 1.75rem 1.5rem;
