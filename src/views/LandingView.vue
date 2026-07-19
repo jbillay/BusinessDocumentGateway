@@ -1,19 +1,17 @@
 <script setup lang="ts">
 import { reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import Button from 'primevue/button'
-import InputText from 'primevue/inputtext'
-import Textarea from 'primevue/textarea'
 import MarketingNav from '@/components/marketing/MarketingNav.vue'
 import SiteFooter from '@/components/marketing/SiteFooter.vue'
 import { hasStoredSession } from '@/lib/session'
 import { CONTACT_EMAIL } from '@/lib/contact'
-import { PRO_PRICES, TEASER_FREE, TEASER_PRO } from '@/lib/plans'
+import { PRICING_FAQ, PRO_PRICES, TEASER_FREE, TEASER_PRO } from '@/lib/plans'
 
 /**
  * Public commercial landing page (task 020). Sections: hero, value metrics,
- * how it works, features, benefits, pricing teaser, and a contact form that
- * composes a message via the visitor's mail client (mailto).
+ * how it works, features, benefits, pricing teaser, FAQ teaser, and a contact
+ * form that submits through the send-email edge function. Deliberately
+ * PrimeVue-free so anonymous visitors get the lightest possible bundle.
  */
 const router = useRouter()
 
@@ -96,12 +94,17 @@ const BENEFITS = [
   },
 ]
 
-// --- Contact form (mailto) --------------------------------------------------
-const contact = reactive({ name: '', email: '', message: '' })
+// Two objection-killers surfaced from the pricing FAQ, shown near the CTA.
+const FAQ_TEASER = [PRICING_FAQ[3], PRICING_FAQ[1]]
+
+// --- Contact form (send-email edge function) --------------------------------
+const contact = reactive({ name: '', email: '', message: '', website: '' /* honeypot */ })
 const contactErrors = reactive<{ name?: string; email?: string; message?: string }>({})
 const contactSent = ref(false)
+const contactSending = ref(false)
+const contactFailed = ref(false)
 
-function submitContact() {
+async function submitContact() {
   contactErrors.name = contact.name ? undefined : 'Please tell us your name.'
   contactErrors.email = !contact.email
     ? 'Please add your email so we can reply.'
@@ -111,10 +114,30 @@ function submitContact() {
   contactErrors.message = contact.message ? undefined : 'Let us know how we can help.'
   if (contactErrors.name || contactErrors.email || contactErrors.message) return
 
-  const subject = encodeURIComponent(`Business Document Gateway enquiry from ${contact.name}`)
-  const body = encodeURIComponent(`${contact.message}\n\n— ${contact.name} (${contact.email})`)
-  window.location.href = `mailto:${CONTACT_EMAIL}?subject=${subject}&body=${body}`
-  contactSent.value = true
+  contactSending.value = true
+  contactFailed.value = false
+  try {
+    // Plain fetch (not supabase.functions.invoke) keeps the Supabase client
+    // out of the marketing bundle. The endpoint is unauthenticated for the
+    // contact_enquiry type only.
+    const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-email`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: 'contact_enquiry',
+        name: contact.name,
+        email: contact.email,
+        message: contact.message,
+        website: contact.website,
+      }),
+    })
+    if (!res.ok) throw new Error(`send failed (${res.status})`)
+    contactSent.value = true
+  } catch {
+    contactFailed.value = true
+  } finally {
+    contactSending.value = false
+  }
 }
 </script>
 
@@ -134,16 +157,15 @@ function submitContact() {
             neatly in one place. No accounts for them. No chasing for you.
           </p>
           <div class="hero__cta">
-            <Button label="Start for free" icon="pi pi-arrow-right" icon-pos="right" size="large" @click="getStarted" />
-            <Button
-              label="See how it works"
-              text
-              severity="secondary"
-              size="large"
-              @click="router.push({ name: 'landing', hash: '#how' })"
-            />
+            <button type="button" class="bdg-btn bdg-btn--primary bdg-btn--lg" @click="getStarted">
+              Start for free <i class="pi pi-arrow-right" />
+            </button>
+            <router-link class="bdg-btn bdg-btn--ghost bdg-btn--lg" :to="{ name: 'landing', hash: '#how' }">
+              See how it works
+            </router-link>
           </div>
           <p class="hero__note"><i class="pi pi-check" /> Free forever — no card, no trial clock.</p>
+          <p class="hero__audience">For accountants&ensp;·&ensp;bookkeepers&ensp;·&ensp;agencies&ensp;·&ensp;HR&ensp;·&ensp;legal</p>
         </div>
 
         <!-- Product preview mock -->
@@ -151,7 +173,8 @@ function submitContact() {
           <div class="mock bdg-card">
             <div class="mock__head">
               <span class="mock__dot" /><span class="mock__dot" /><span class="mock__dot" />
-              <span class="mock__url">yourfirm.bdg.app/portal</span>
+              <!-- Truthful address: this is what a real portal link looks like today. -->
+              <span class="mock__url">business-document-gateway.vercel.app/portal/…</span>
             </div>
             <div class="mock__body">
               <div class="mock__title-row">
@@ -256,7 +279,7 @@ function submitContact() {
             <ul class="plans__list">
               <li v-for="line in TEASER_FREE" :key="line"><i class="pi pi-check" /> {{ line }}</li>
             </ul>
-            <Button label="Start for free" outlined class="w-full" @click="getStarted" />
+            <button type="button" class="bdg-btn bdg-btn--outlined bdg-btn--block" @click="getStarted">Start for free</button>
           </div>
           <div class="plans__card plans__card--featured bdg-card">
             <span class="plans__flag">Most popular</span>
@@ -267,7 +290,9 @@ function submitContact() {
             <ul class="plans__list">
               <li v-for="line in TEASER_PRO" :key="line"><i class="pi pi-check" /> {{ line }}</li>
             </ul>
-            <Button label="See full pricing" icon="pi pi-arrow-right" icon-pos="right" class="w-full" @click="router.push({ name: 'pricing' })" />
+            <router-link class="bdg-btn bdg-btn--primary bdg-btn--block" :to="{ name: 'pricing' }">
+              See full pricing <i class="pi pi-arrow-right" />
+            </router-link>
           </div>
         </div>
       </div>
@@ -278,7 +303,28 @@ function submitContact() {
       <div class="cta__inner">
         <h2>Ready to stop chasing documents?</h2>
         <p>Create your first request in minutes — free, no card required.</p>
-        <Button label="Get started free" icon="pi pi-arrow-right" icon-pos="right" size="large" @click="getStarted" />
+        <button type="button" class="bdg-btn bdg-btn--lg cta__btn" @click="getStarted">
+          Get started free <i class="pi pi-arrow-right" />
+        </button>
+      </div>
+    </section>
+
+    <!-- FAQ teaser: the two objections most likely to stall a signup -->
+    <section class="section section--alt faq">
+      <div class="section__inner">
+        <header class="section__head">
+          <span class="bdg-label-sm">Good to know</span>
+          <h2>The questions everyone asks first</h2>
+        </header>
+        <div class="faq__grid">
+          <div v-for="item in FAQ_TEASER" :key="item.q" class="bdg-card faq__item">
+            <h3>{{ item.q }}</h3>
+            <p>{{ item.a }}</p>
+          </div>
+        </div>
+        <p class="faq__more">
+          <router-link :to="{ name: 'pricing' }">More questions answered on the pricing page →</router-link>
+        </p>
       </div>
     </section>
 
@@ -296,25 +342,62 @@ function submitContact() {
         <form class="contact__form bdg-card" @submit.prevent="submitContact" novalidate>
           <div v-if="contactSent" class="contact__sent">
             <i class="pi pi-check-circle" />
-            <p>Your email draft is ready in your mail app. Send it and we’ll be in touch soon.</p>
+            <p>
+              Thanks, {{ contact.name }} — your message is on its way. We’ll reply to
+              <strong>{{ contact.email }}</strong> as soon as we can.
+            </p>
           </div>
           <template v-else>
             <div class="bdg-field">
               <label for="c-name">Name</label>
-              <InputText id="c-name" v-model.trim="contact.name" :invalid="!!contactErrors.name" autocomplete="name" />
-              <small v-if="contactErrors.name" class="p-error">{{ contactErrors.name }}</small>
+              <input
+                id="c-name"
+                v-model.trim="contact.name"
+                class="bdg-input"
+                :class="{ 'bdg-input--invalid': contactErrors.name }"
+                :aria-invalid="!!contactErrors.name"
+                autocomplete="name"
+              />
+              <small v-if="contactErrors.name" class="bdg-error">{{ contactErrors.name }}</small>
             </div>
             <div class="bdg-field">
               <label for="c-email">Email</label>
-              <InputText id="c-email" v-model.trim="contact.email" type="email" placeholder="name@company.com" :invalid="!!contactErrors.email" autocomplete="email" />
-              <small v-if="contactErrors.email" class="p-error">{{ contactErrors.email }}</small>
+              <input
+                id="c-email"
+                v-model.trim="contact.email"
+                type="email"
+                class="bdg-input"
+                :class="{ 'bdg-input--invalid': contactErrors.email }"
+                :aria-invalid="!!contactErrors.email"
+                placeholder="name@company.com"
+                autocomplete="email"
+              />
+              <small v-if="contactErrors.email" class="bdg-error">{{ contactErrors.email }}</small>
             </div>
             <div class="bdg-field">
               <label for="c-message">How can we help?</label>
-              <Textarea id="c-message" v-model.trim="contact.message" rows="4" auto-resize :invalid="!!contactErrors.message" />
-              <small v-if="contactErrors.message" class="p-error">{{ contactErrors.message }}</small>
+              <textarea
+                id="c-message"
+                v-model.trim="contact.message"
+                rows="4"
+                class="bdg-input"
+                :class="{ 'bdg-input--invalid': contactErrors.message }"
+                :aria-invalid="!!contactErrors.message"
+              />
+              <small v-if="contactErrors.message" class="bdg-error">{{ contactErrors.message }}</small>
             </div>
-            <Button type="submit" label="Send message" icon="pi pi-send" icon-pos="right" class="w-full" />
+            <!-- Honeypot: invisible to humans; bots that fill it are dropped server-side. -->
+            <div class="bdg-honeypot" aria-hidden="true">
+              <label for="c-website">Website</label>
+              <input id="c-website" v-model="contact.website" tabindex="-1" autocomplete="off" />
+            </div>
+            <button type="submit" class="bdg-btn bdg-btn--primary bdg-btn--block" :disabled="contactSending">
+              {{ contactSending ? 'Sending…' : 'Send message' }} <i class="pi pi-send" />
+            </button>
+            <p v-if="contactFailed" class="contact__error" role="alert">
+              Something went wrong sending your message. Please email us directly at
+              <a :href="`mailto:${CONTACT_EMAIL}`">{{ CONTACT_EMAIL }}</a>.
+            </p>
           </template>
         </form>
       </div>
@@ -343,7 +426,8 @@ function submitContact() {
 .hero__inner {
   max-width: 1200px;
   margin: 0 auto;
-  padding: 3rem 1.5rem;
+  /* Asymmetric padding shifts the optical centre up on tall viewports. */
+  padding: 2rem 1.5rem 5rem;
   display: grid;
   grid-template-columns: 1.05fr 0.95fr;
   gap: 3rem;
@@ -390,6 +474,14 @@ function submitContact() {
 .hero__note i {
   color: #059669;
   margin-right: 0.35rem;
+}
+.hero__audience {
+  margin: 0.875rem 0 0;
+  color: #94a3b8;
+  font-size: 0.8rem;
+  font-weight: 500;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
 }
 
 /* Product mock */
@@ -766,15 +858,48 @@ function submitContact() {
   color: rgba(255, 255, 255, 0.85);
   font-size: 1.05rem;
 }
-.cta :deep(.p-button) {
+.cta__btn {
   background: #fff;
   border-color: #fff;
   color: var(--bdg-deep);
 }
-.cta :deep(.p-button:hover) {
+.cta__btn:hover {
   background: #f1f5f9;
   border-color: #f1f5f9;
-  color: var(--bdg-deep);
+}
+
+/* ---- FAQ teaser ---- */
+.faq__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 26rem));
+  gap: 1.25rem;
+  justify-content: center;
+}
+.faq__item {
+  padding: 1.5rem 1.625rem;
+}
+.faq__item h3 {
+  margin: 0 0 0.5rem;
+  font-size: 1.02rem;
+}
+.faq__item p {
+  margin: 0;
+  color: #64748b;
+  font-size: 0.925rem;
+  line-height: 1.6;
+}
+.faq__more {
+  margin: 1.75rem 0 0;
+  text-align: center;
+  font-size: 0.925rem;
+}
+.faq__more a {
+  color: var(--bdg-blue);
+  text-decoration: none;
+  font-weight: 500;
+}
+.faq__more a:hover {
+  text-decoration: underline;
 }
 
 /* ---- Contact ---- */
@@ -820,6 +945,15 @@ function submitContact() {
   margin: 0;
   color: #475569;
 }
+.contact__error {
+  margin: 0.875rem 0 0;
+  font-size: 0.875rem;
+  color: #ba1a1a;
+}
+.contact__error a {
+  color: inherit;
+  font-weight: 600;
+}
 
 /* ---- Responsive ---- */
 @media (max-width: 960px) {
@@ -852,7 +986,8 @@ function submitContact() {
   .steps,
   .features,
   .benefits,
-  .plans {
+  .plans,
+  .faq__grid {
     grid-template-columns: 1fr;
   }
   .plans {

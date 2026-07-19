@@ -8,6 +8,9 @@ import { createClient } from 'jsr:@supabase/supabase-js@2'
  * the hook path works; both paths are enforced below.
  *
  * Body: { type: 'request_created' | 'reminder' | 'completed' | 'link_regenerated' | 'documents_rejected', request_id: string }
+ *   or the UNAUTHENTICATED marketing-site path:
+ *       { type: 'contact_enquiry', name, email, message, website? }
+ *       (fixed internal recipient, honeypot 'website' field, size-capped — safe without auth)
  */
 
 type EmailType = 'request_created' | 'reminder' | 'completed' | 'link_regenerated' | 'documents_rejected'
@@ -80,12 +83,52 @@ Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: CORS_HEADERS })
   if (req.method !== 'POST') return json(405, { error: 'method not allowed' })
 
-  let payload: { type?: EmailType; request_id?: string }
+  let payload: { type?: EmailType | 'contact_enquiry'; request_id?: string; [key: string]: unknown }
   try {
     payload = await req.json()
   } catch {
     return json(400, { error: 'invalid json' })
   }
+
+  // Marketing-site contact form: unauthenticated by design. Safe because the
+  // recipient is fixed (our own inbox), inputs are size-capped, and the hidden
+  // honeypot field silently drops bots.
+  if (payload.type === 'contact_enquiry') {
+    const name = String(payload.name ?? '').trim().slice(0, 200)
+    const email = String(payload.email ?? '').trim().slice(0, 320)
+    const message = String(payload.message ?? '').trim().slice(0, 5000)
+    const honeypot = String(payload.website ?? '').trim()
+    if (honeypot) return json(200, { sent: true }) // pretend success for bots
+    if (!name || !message || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return json(400, { error: 'invalid input' })
+    }
+    // TODO: point at the branded support inbox once the custom domain is live
+    // (Resend test mode only delivers to the owner inbox anyway).
+    const CONTACT_INBOX = Deno.env.get('CONTACT_INBOX') ?? 'jbillay@gmail.com'
+    const enquiryHtml = layout(
+      'New enquiry from the marketing site',
+      p(`<strong>${esc(name)}</strong> &lt;${esc(email)}&gt; wrote:`) +
+        p(esc(message).replace(/\n/g, '<br>')),
+    )
+    const enquiryResponse = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${RESEND_API_KEY}` },
+      body: JSON.stringify({
+        from: FROM,
+        to: [CONTACT_INBOX],
+        reply_to: email,
+        subject: `Website enquiry from ${name}`,
+        html: enquiryHtml,
+      }),
+    })
+    if (!enquiryResponse.ok) {
+      const detail = await enquiryResponse.text()
+      console.error('resend error (contact_enquiry)', enquiryResponse.status, detail)
+      return json(502, { error: 'email delivery failed' })
+    }
+    return json(200, { sent: true })
+  }
+
   const { type, request_id } = payload
   if (!type || !request_id) return json(400, { error: 'type and request_id are required' })
 
