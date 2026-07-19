@@ -449,7 +449,8 @@ async function submitContact() {
   font-size: 0.8rem;
   font-weight: 600;
   letter-spacing: 0.04em;
-  color: var(--bdg-blue);
+  /* blue-600 rather than --bdg-blue: 12.8px text needs 4.5:1 on the tinted chip. */
+  color: #2563eb;
   background: rgba(59, 130, 246, 0.1);
   padding: 0.3rem 0.75rem;
   border-radius: 999px;
@@ -485,7 +486,7 @@ async function submitContact() {
 }
 .hero__audience {
   margin: 0.875rem 0 0;
-  color: #94a3b8;
+  color: #64748b;
   font-size: 0.8rem;
   font-weight: 500;
   letter-spacing: 0.03em;
@@ -944,7 +945,8 @@ async function submitContact() {
   font-size: 0.925rem;
 }
 .faq__more a {
-  color: var(--bdg-blue);
+  /* blue-600: link-sized text fails AA at --bdg-blue's 3.68:1. */
+  color: #2563eb;
   text-decoration: none;
   font-weight: 500;
 }
@@ -1014,9 +1016,10 @@ async function submitContact() {
     /* Stacked layout: let content set the height so the CTA stays reachable. */
     min-height: 0;
   }
+  /* Copy and CTA own the mobile fold; the mock follows as supporting proof. */
   .hero__preview {
-    order: -1;
     max-width: 26rem;
+    margin: 0 auto;
   }
   .mock {
     transform: none;
