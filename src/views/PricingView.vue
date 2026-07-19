@@ -1,9 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import Button from 'primevue/button'
-import SelectButton from 'primevue/selectbutton'
-import Tag from 'primevue/tag'
 import MarketingNav from '@/components/marketing/MarketingNav.vue'
 import SiteFooter from '@/components/marketing/SiteFooter.vue'
 import { hasStoredSession } from '@/lib/session'
@@ -16,10 +13,6 @@ import { PLAN_BUSINESS, PLAN_FREE, PLAN_PRO, PRICING_FAQ, PRO_PRICES } from '@/l
  */
 const router = useRouter()
 
-const INTERVALS = [
-  { label: 'Annual — save 21%', value: 'year' },
-  { label: 'Monthly', value: 'month' },
-]
 const interval = ref<'month' | 'year'>('year')
 
 const proPrice = computed(() => (interval.value === 'year' ? PRO_PRICES.annual : PRO_PRICES.monthly))
@@ -44,14 +37,24 @@ function choosePlan() {
       <div class="pricing-hero">
         <h1>Simple pricing for collecting documents</h1>
         <p>Start free forever — no card, no trial clock. Upgrade when your client volume does.</p>
-        <SelectButton
-          v-model="interval"
-          :options="INTERVALS"
-          option-label="label"
-          option-value="value"
-          :allow-empty="false"
-          aria-label="Billing interval"
-        />
+        <div class="pricing-toggle" role="group" aria-label="Billing interval">
+          <button
+            type="button"
+            :class="{ 'is-active': interval === 'year' }"
+            :aria-pressed="interval === 'year'"
+            @click="interval = 'year'"
+          >
+            Annual — save 21%
+          </button>
+          <button
+            type="button"
+            :class="{ 'is-active': interval === 'month' }"
+            :aria-pressed="interval === 'month'"
+            @click="interval = 'month'"
+          >
+            Monthly
+          </button>
+        </div>
       </div>
 
       <div class="pricing-grid">
@@ -65,12 +68,12 @@ function choosePlan() {
               <template v-if="line.strong"><strong>{{ line.strong }}</strong>&nbsp;</template>{{ line.text }}
             </li>
           </ul>
-          <Button label="Start for free" outlined @click="choosePlan" />
+          <button type="button" class="bdg-btn bdg-btn--outlined" @click="choosePlan">Start for free</button>
         </section>
 
         <!-- Pro -->
         <section class="bdg-card pricing-card pricing-card--featured">
-          <Tag value="Most popular" class="pricing-card__flag" />
+          <span class="pricing-card__flag">Most popular</span>
           <h2 class="pricing-card__name">Pro</h2>
           <div class="pricing-card__price">
             <span class="amount">${{ proPrice }}</span
@@ -82,7 +85,7 @@ function choosePlan() {
               <template v-if="line.strong"><strong>{{ line.strong }}</strong>&nbsp;</template>{{ line.text }}
             </li>
           </ul>
-          <Button label="Upgrade to Pro" @click="choosePlan" />
+          <button type="button" class="bdg-btn bdg-btn--primary" @click="choosePlan">Upgrade to Pro</button>
         </section>
 
         <!-- Business teaser -->
@@ -95,7 +98,7 @@ function choosePlan() {
               <template v-if="line.strong"><strong>{{ line.strong }}</strong>&nbsp;</template>{{ line.text }}
             </li>
           </ul>
-          <Button label="Coming soon" outlined disabled />
+          <button type="button" class="bdg-btn bdg-btn--outlined" disabled>Coming soon</button>
         </section>
       </div>
 
@@ -167,6 +170,36 @@ function choosePlan() {
   position: absolute;
   top: -0.8rem;
   left: 1.25rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: #ffffff;
+  background: var(--bdg-blue, #3b82f6);
+  padding: 0.25rem 0.7rem;
+  border-radius: 999px;
+}
+.pricing-toggle {
+  display: inline-flex;
+  gap: 0.25rem;
+  padding: 0.25rem;
+  background: #ffffff;
+  border: 1px solid var(--bdg-border);
+  border-radius: 0.7rem;
+}
+.pricing-toggle button {
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #64748b;
+  background: transparent;
+  border: none;
+  border-radius: 0.5rem;
+  padding: 0.5rem 1rem;
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+.pricing-toggle button.is-active {
+  background: #eff6ff;
+  color: var(--bdg-blue, #3b82f6);
 }
 .pricing-card__name {
   margin: 0;

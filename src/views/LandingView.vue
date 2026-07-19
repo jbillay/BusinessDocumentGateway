@@ -160,8 +160,8 @@ async function submitContact() {
             <button type="button" class="bdg-btn bdg-btn--primary bdg-btn--lg" @click="getStarted">
               Start for free <i class="pi pi-arrow-right" />
             </button>
-            <router-link class="bdg-btn bdg-btn--ghost bdg-btn--lg" :to="{ name: 'landing', hash: '#how' }">
-              See how it works
+            <router-link :to="{ name: 'landing', hash: '#how' }" custom v-slot="{ href, navigate }">
+              <a :href="href" class="bdg-btn bdg-btn--ghost bdg-btn--lg" @click="navigate">See how it works</a>
             </router-link>
           </div>
           <p class="hero__note"><i class="pi pi-check" /> Free forever — no card, no trial clock.</p>

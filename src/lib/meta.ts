@@ -41,6 +41,21 @@ const PAGE_META: Record<string, PageMeta> = {
     title: `Cookie Policy — ${SITE_NAME}`,
     description: `Which cookies ${SITE_NAME} uses and how to change your consent at any time.`,
   },
+  'guide-collect': {
+    title: `How to collect documents from clients — ${SITE_NAME}`,
+    description:
+      'A practical six-step workflow for accountants, agencies, and small firms: checklists, deadlines, secure upload links, and automatic reminders instead of email chaos.',
+  },
+  'guide-checklist': {
+    title: `New-client onboarding document checklist — ${SITE_NAME}`,
+    description:
+      'The documents accountants, agencies, HR, and consultancies need on day one — identity, financial, project, and people checklists ready to reuse.',
+  },
+  'guide-secure': {
+    title: `Secure alternatives to email attachments — ${SITE_NAME}`,
+    description:
+      'Why client documents shouldn’t travel as email attachments, what the GDPR expects from a small firm, and the practical secure options ranked.',
+  },
   login: { title: `Sign in — ${SITE_NAME}`, noindex: true },
   register: { title: `Create your account — ${SITE_NAME}`, noindex: true },
   portal: { title: `Secure document upload — ${SITE_NAME}`, noindex: true },
@@ -54,8 +69,23 @@ const PAGE_META: Record<string, PageMeta> = {
   billing: { title: `Billing — ${SITE_NAME}`, noindex: true },
 }
 
+/** Guide routes get Article structured data derived from their page meta. */
+const GUIDE_ROUTES = ['guide-collect', 'guide-checklist', 'guide-secure']
+
 /** JSON-LD payloads for the routes that benefit from structured data. */
 function jsonLdFor(routeName: string): object | null {
+  if (GUIDE_ROUTES.includes(routeName)) {
+    const meta = PAGE_META[routeName]
+    return {
+      '@context': 'https://schema.org',
+      '@type': 'Article',
+      headline: meta?.title?.replace(` — ${SITE_NAME}`, ''),
+      description: meta?.description,
+      author: { '@type': 'Organization', name: SITE_NAME, url: SITE_URL },
+      publisher: { '@type': 'Organization', name: SITE_NAME, url: SITE_URL },
+      dateModified: '2026-07-19',
+    }
+  }
   if (routeName === 'landing') {
     return {
       '@context': 'https://schema.org',

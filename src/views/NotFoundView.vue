@@ -1,6 +1,4 @@
 <script setup lang="ts">
-import Button from 'primevue/button'
-import { useRouter } from 'vue-router'
 import MarketingNav from '@/components/marketing/MarketingNav.vue'
 import SiteFooter from '@/components/marketing/SiteFooter.vue'
 
@@ -8,7 +6,6 @@ import SiteFooter from '@/components/marketing/SiteFooter.vue'
  * Branded 404 on the marketing shell. Catch-all for unknown URLs — public
  * visitors get routes back into the site instead of a login bounce.
  */
-const router = useRouter()
 </script>
 
 <template>
@@ -21,8 +18,10 @@ const router = useRouter()
         The link may be out of date, or the address may have a typo. Here's the way back.
       </p>
       <div class="nf-actions">
-        <Button label="Go to the homepage" icon="pi pi-home" @click="router.push({ name: 'landing' })" />
-        <Button label="See pricing" text severity="secondary" @click="router.push({ name: 'pricing' })" />
+        <router-link class="bdg-btn bdg-btn--primary" :to="{ name: 'landing' }">
+          <i class="pi pi-home" /> Go to the homepage
+        </router-link>
+        <router-link class="bdg-btn bdg-btn--ghost" :to="{ name: 'pricing' }">See pricing</router-link>
       </div>
       <p class="nf-help">
         Looking for a document request you were sent? Use the exact link from your email — portal links are unique to
