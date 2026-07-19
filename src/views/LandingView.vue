@@ -209,7 +209,7 @@ async function submitContact() {
     </section>
 
     <!-- How it works -->
-    <section id="how" class="section">
+    <section id="how" class="section section--full">
       <div class="section__inner">
         <header class="section__head">
           <span class="bdg-label-sm">How it works</span>
@@ -217,12 +217,20 @@ async function submitContact() {
           <p>Built for solo professionals and small teams who collect paperwork from clients again and again.</p>
         </header>
         <div class="steps">
-          <div v-for="(step, i) in STEPS" :key="step.title" class="steps__item">
-            <div class="steps__num">{{ i + 1 }}</div>
-            <div class="steps__icon"><i :class="step.icon" /></div>
-            <h3>{{ step.title }}</h3>
+          <div v-for="(step, i) in STEPS" :key="step.title" class="steps__card bdg-card bdg-card--hover">
+            <div class="steps__top">
+              <span class="steps__num" aria-hidden="true">{{ i + 1 }}</span>
+              <span class="steps__icon"><i :class="step.icon" /></span>
+            </div>
+            <h3><span class="bdg-sr-only">Step {{ i + 1 }}: </span>{{ step.title }}</h3>
             <p>{{ step.body }}</p>
           </div>
+        </div>
+        <div class="steps__cta">
+          <button type="button" class="bdg-btn bdg-btn--primary bdg-btn--lg" @click="getStarted">
+            Create your first request <i class="pi pi-arrow-right" />
+          </button>
+          <p>Free forever — your first request takes about two minutes.</p>
         </div>
       </div>
     </section>
@@ -634,6 +642,16 @@ async function submitContact() {
   border-top: 1px solid var(--bdg-border);
   border-bottom: 1px solid var(--bdg-border);
 }
+/* Full-viewport chapter: same height math as the hero, content optically centred. */
+.section--full {
+  display: flex;
+  align-items: center;
+  min-height: calc(100vh - 4.2rem);
+  min-height: calc(100svh - 4.2rem);
+}
+.section--full .section__inner {
+  width: 100%;
+}
 .section__inner {
   max-width: 1200px;
   margin: 0 auto;
@@ -659,26 +677,49 @@ async function submitContact() {
 .steps {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 1.5rem;
+  gap: 1.75rem;
 }
-.steps__item {
+.steps__card {
   position: relative;
-  padding: 1.75rem 1.5rem;
-  text-align: center;
+  padding: 1.875rem 1.75rem 2rem;
+}
+/* Journey arrow sitting in the gap between consecutive cards. */
+.steps__card:not(:last-child)::after {
+  content: '→';
+  position: absolute;
+  top: 50%;
+  left: 100%;
+  width: 1.75rem;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #94a3b8;
+  font-size: 1.3rem;
+  font-weight: 600;
+}
+.steps__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1.375rem;
 }
 .steps__num {
-  position: absolute;
-  top: 1rem;
-  right: 1.25rem;
-  font-size: 2.25rem;
+  width: 3.25rem;
+  height: 3.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--bdg-gradient);
+  color: #fff;
+  font-size: 1.35rem;
   font-weight: 800;
-  color: #eef2f7;
-  line-height: 1;
+  box-shadow: 0 8px 18px rgba(59, 130, 246, 0.3);
 }
 .steps__icon {
   width: 3rem;
   height: 3rem;
-  margin: 0 auto 1rem;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -687,15 +728,24 @@ async function submitContact() {
   color: var(--bdg-blue);
   font-size: 1.25rem;
 }
-.steps__item h3 {
-  margin: 0 0 0.5rem;
-  font-size: 1.15rem;
+.steps__card h3 {
+  margin: 0 0 0.55rem;
+  font-size: 1.2rem;
 }
-.steps__item p {
+.steps__card p {
   margin: 0;
   color: #64748b;
   font-size: 0.95rem;
-  line-height: 1.6;
+  line-height: 1.65;
+}
+.steps__cta {
+  margin-top: 3.25rem;
+  text-align: center;
+}
+.steps__cta p {
+  margin: 0.875rem 0 0;
+  color: #64748b;
+  font-size: 0.9rem;
 }
 
 /* ---- Features ---- */
@@ -971,10 +1021,24 @@ async function submitContact() {
   .mock {
     transform: none;
   }
-  .steps,
   .features,
   .benefits {
     grid-template-columns: 1fr 1fr;
+  }
+  /* Stacked steps: one column, arrows turn downward in the row gaps. */
+  .steps {
+    grid-template-columns: 1fr;
+    max-width: 30rem;
+    margin: 0 auto;
+    gap: 2.25rem;
+  }
+  .steps__card:not(:last-child)::after {
+    content: '↓';
+    top: 100%;
+    left: 50%;
+    width: auto;
+    height: 2.25rem;
+    transform: translateX(-50%);
   }
   .contact {
     grid-template-columns: 1fr;
@@ -983,7 +1047,6 @@ async function submitContact() {
 }
 @media (max-width: 620px) {
   .metrics__inner,
-  .steps,
   .features,
   .benefits,
   .plans,

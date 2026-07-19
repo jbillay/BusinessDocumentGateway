@@ -114,6 +114,19 @@ h3 {
     var(--bdg-canvas);
 }
 
+/* Screen-reader-only text (visually hidden, still announced) */
+.bdg-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 /* Micro-copy label (label-sm role) */
 .bdg-label-sm {
   font-size: 0.75rem;
