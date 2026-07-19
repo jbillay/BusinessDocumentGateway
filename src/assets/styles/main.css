@@ -150,6 +150,34 @@ h3 {
   font-weight: 600;
 }
 
+/* Status tags: tinted chips with dark text instead of PrimeVue's white-on-color
+   fills, whose orange/green measure ~2.8:1 against white (fails WCAG AA). */
+.p-tag.p-tag-warn {
+  background: #fef3c7;
+  color: #92400e;
+}
+.p-tag.p-tag-success {
+  background: #d1fae5;
+  color: #065f46;
+}
+.p-tag.p-tag-info {
+  background: #dbeafe;
+  color: #1e40af;
+}
+.p-tag.p-tag-danger {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+/* Disabled inputs must still read as their value, not as a placeholder —
+   view-mode forms (Profile, Portal Settings) show saved data through them. */
+.p-inputtext:disabled,
+.p-textarea:disabled {
+  opacity: 1;
+  color: var(--bdg-deep);
+  background: #f8fafc;
+}
+
 /* Native button system for marketing pages (keeps them PrimeVue-free). */
 .bdg-btn {
   display: inline-flex;

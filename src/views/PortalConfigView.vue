@@ -138,7 +138,7 @@ async function save() {
         </div>
         <div class="config-header__actions">
           <Button label="Cancel" severity="secondary" outlined :disabled="saving" @click="cancel" />
-          <Button label="Save Changes" severity="contrast" :loading="saving" :disabled="locked" @click="save" />
+          <Button label="Save Changes" :loading="saving" :disabled="locked" @click="save" />
         </div>
       </div>
 

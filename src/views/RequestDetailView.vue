@@ -9,6 +9,7 @@ import Tag from 'primevue/tag'
 import ProgressBar from 'primevue/progressbar'
 import Avatar from 'primevue/avatar'
 import Dialog from 'primevue/dialog'
+import Menu from 'primevue/menu'
 import InputText from 'primevue/inputtext'
 import Select from 'primevue/select'
 import ToggleSwitch from 'primevue/toggleswitch'
@@ -76,6 +77,21 @@ function subscribeEvents() {
 }
 
 const progress = computed(() => (request.value ? requestProgress(request.value) : 0))
+/** While documents are missing, chasing them (Remind) is the natural next step;
+ * Mark Completed only becomes the loudest action once everything arrived. */
+const remindIsPrimary = computed(
+  () => progress.value < 100 && request.value?.status !== 'completed' && !inReview.value,
+)
+
+/* Destructive action lives behind the overflow menu, away from the primary row. */
+const moreMenu = ref<InstanceType<typeof Menu>>()
+const moreItems = [
+  {
+    label: 'Delete request',
+    icon: 'pi pi-trash',
+    command: () => confirmDelete(),
+  },
+]
 const items = computed(() => request.value?.request_items ?? [])
 const uploadedCount = computed(() => items.value.filter((i) => itemReceived(i.status)).length)
 const inReview = computed(() => request.value?.status === 'in_review')
@@ -409,17 +425,34 @@ function confirmDelete() {
           </div>
           <div class="detail__actions">
             <Button label="Edit" icon="pi pi-pencil" severity="secondary" outlined @click="dialogVisible = true" />
-            <Button label="Remind" icon="pi pi-bell" severity="secondary" outlined @click="remind" />
+            <Button
+              label="Remind"
+              icon="pi pi-bell"
+              :severity="remindIsPrimary ? undefined : 'secondary'"
+              :outlined="!remindIsPrimary"
+              @click="remind"
+            />
             <Button label="Download All" icon="pi pi-download" severity="secondary" outlined :disabled="allFiles.length === 0" @click="downloadAll" />
             <Button
               v-if="request.status !== 'completed' && !inReview"
               label="Mark Completed"
               icon="pi pi-check"
               severity="success"
+              :outlined="progress < 100"
               @click="setStatus('completed')"
             />
             <Button v-else-if="request.status === 'completed'" label="Reopen" icon="pi pi-refresh" severity="secondary" @click="setStatus('pending')" />
-            <Button icon="pi pi-trash" severity="danger" text rounded v-tooltip.top="'Delete request'" @click="confirmDelete" />
+            <Button
+              icon="pi pi-ellipsis-v"
+              severity="secondary"
+              text
+              rounded
+              aria-haspopup="true"
+              aria-controls="request-more-menu"
+              aria-label="More actions"
+              @click="moreMenu?.toggle($event)"
+            />
+            <Menu ref="moreMenu" id="request-more-menu" :model="moreItems" popup />
           </div>
         </header>
 

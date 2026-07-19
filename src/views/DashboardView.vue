@@ -236,7 +236,7 @@ function lastActivity(request: DocumentRequest): string {
             :loading="requestsStore.loading"
             :global-filter-fields="['name', 'client_email', 'client_name', 'client_company']"
             data-key="id"
-            paginator
+            :paginator="requestsStore.requests.length > 8"
             :rows="8"
             :row-hover="true"
             @row-click="openDetail($event.data)"
@@ -249,29 +249,25 @@ function lastActivity(request: DocumentRequest): string {
               </div>
             </template>
 
-            <Column field="client_name" header="Client" sortable>
-              <template #body="{ data }">
-                <span class="font-semibold">{{ data.client_company || data.client_name || data.client_email }}</span>
-              </template>
-            </Column>
-            <Column field="name" header="Request Name" sortable>
+            <!-- Request + client share one two-line cell so the table fits its
+                 card without horizontal scrolling; the email lives on detail. -->
+            <Column field="name" header="Request" sortable>
               <template #body="{ data }">
                 <router-link
                   :to="{ name: 'request-detail', params: { id: data.id } }"
                   class="dashboard__request-link"
                   @click.stop
                 >
-                  <i class="pi pi-file" style="color: #94a3b8" />
                   {{ data.name }}
                 </router-link>
+                <div class="dashboard__request-client">
+                  {{ data.client_company || data.client_name || data.client_email }}
+                </div>
               </template>
             </Column>
-            <Column field="expected_date" header="Expected Date" sortable>
+            <Column field="expected_date" header="Due date" sortable>
               <template #body="{ data }">
-                <span class="flex align-items-center gap-2">
-                  <i class="pi pi-calendar" style="color: #94a3b8" />
-                  {{ formatDate(data.expected_date) }}
-                </span>
+                {{ formatDate(data.expected_date) }}
               </template>
             </Column>
             <Column field="status" header="Status" sortable :show-filter-menu="false">
@@ -279,15 +275,7 @@ function lastActivity(request: DocumentRequest): string {
                 <Tag :value="STATUS_LABELS[data.status as RequestStatus]" :severity="STATUS_SEVERITIES[data.status as RequestStatus]" />
               </template>
             </Column>
-            <Column field="client_email" header="Client Email">
-              <template #body="{ data }">
-                <span class="flex align-items-center gap-2 text-sm">
-                  <i class="pi pi-envelope" style="color: #94a3b8" />
-                  {{ data.client_email }}
-                </span>
-              </template>
-            </Column>
-            <Column header="Progress" style="min-width: 10rem">
+            <Column header="Progress" style="min-width: 9rem">
               <template #body="{ data }">
                 <div class="flex align-items-center gap-2">
                   <ProgressBar :value="requestProgress(data)" :show-value="false" style="height: 8px; flex: 1" />
@@ -295,12 +283,12 @@ function lastActivity(request: DocumentRequest): string {
                 </div>
               </template>
             </Column>
-            <Column field="updated_at" header="Last Activity" sortable>
+            <Column field="updated_at" header="Activity" sortable>
               <template #body="{ data }">
                 <span class="text-sm" style="color: #64748b">{{ lastActivity(data) }}</span>
               </template>
             </Column>
-            <Column header="" style="width: 12rem">
+            <Column header="">
               <template #body="{ data }">
                 <div class="flex gap-1 justify-content-end" @click.stop>
                   <Button icon="pi pi-pencil" text rounded severity="secondary" v-tooltip.top="'Edit request'" @click="openEdit(data)" />
@@ -418,6 +406,11 @@ function lastActivity(request: DocumentRequest): string {
 .dashboard__request-link:hover {
   color: var(--bdg-blue);
   text-decoration: underline;
+}
+.dashboard__request-client {
+  margin-top: 0.125rem;
+  font-size: 0.8rem;
+  color: #64748b;
 }
 .dashboard__empty {
   text-align: center;

@@ -2,6 +2,7 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useToast } from 'primevue/usetoast'
+import { useConfirm } from 'primevue/useconfirm'
 import InputText from 'primevue/inputtext'
 import Textarea from 'primevue/textarea'
 import DatePicker from 'primevue/datepicker'
@@ -30,6 +31,7 @@ interface ChecklistEntry {
 
 const router = useRouter()
 const toast = useToast()
+const confirm = useConfirm()
 const requestsStore = useRequestsStore()
 const library = useLibraryStore()
 const billing = useBillingStore()
@@ -277,8 +279,34 @@ async function send() {
   }
 }
 
+/** Anything typed or selected means Cancel would lose work — confirm first. */
+const dirty = computed(
+  () =>
+    !!(
+      basics.name.trim() ||
+      basics.description.trim() ||
+      basics.due ||
+      client.name.trim() ||
+      client.company.trim() ||
+      client.email.trim() ||
+      client.phone.trim() ||
+      selectedEntries.value.length > 0
+    ),
+)
+
 function cancel() {
-  router.push({ name: 'dashboard' })
+  if (!dirty.value) {
+    router.push({ name: 'dashboard' })
+    return
+  }
+  confirm.require({
+    message: 'Leave without sending? Everything you entered in this request will be discarded.',
+    header: 'Discard this request?',
+    icon: 'pi pi-exclamation-triangle',
+    rejectProps: { label: 'Keep editing', severity: 'secondary', outlined: true },
+    acceptProps: { label: 'Discard', severity: 'danger' },
+    accept: () => router.push({ name: 'dashboard' }),
+  })
 }
 </script>
 
@@ -446,9 +474,9 @@ function cancel() {
               <Checkbox :model-value="groupSelected(group)" binary @update:model-value="toggleGroup(group, $event)" />
               <h3>{{ group.category }}</h3>
             </label>
-            <Tag :value="`${group.items.filter((i) => i.selected).length} Required`" severity="secondary" />
+            <Tag :value="`${group.items.filter((i) => i.selected).length} selected`" severity="secondary" />
           </div>
-          <label v-for="entry in group.items" :key="entry.title" class="bdg-card checklist-item" :class="{ 'checklist-item--off': !entry.selected }">
+          <label v-for="entry in group.items" :key="entry.title" class="bdg-card checklist-item" :class="{ 'checklist-item--on': entry.selected }">
             <Checkbox v-model="entry.selected" binary />
             <span class="checklist-item__text">
               <span class="checklist-item__title">{{ entry.title }}</span>
@@ -501,7 +529,7 @@ function cancel() {
           <div class="bdg-card review-card">
             <div class="review-card__header">
               <span class="review-card__heading"><i class="pi pi-file" /> Request Basics</span>
-              <Button icon="pi pi-pencil" text rounded size="small" v-tooltip.top="'Edit basics'" @click="goTo(0)" />
+              <Button label="Edit" icon="pi pi-pencil" outlined size="small" @click="goTo(0)" />
             </div>
             <span class="bdg-label-sm">Request name</span>
             <p class="review-card__value">{{ basics.name }}</p>
@@ -538,7 +566,7 @@ function cancel() {
           <div class="bdg-card review-card">
             <div class="review-card__header">
               <span class="review-card__heading"><i class="pi pi-user" /> Client Details</span>
-              <Button icon="pi pi-pencil" text rounded size="small" v-tooltip.top="'Edit client'" @click="goTo(1)" />
+              <Button label="Edit" icon="pi pi-pencil" outlined size="small" @click="goTo(1)" />
             </div>
             <div class="review-card__client">
               <Avatar :label="clientInitials" shape="circle" style="background: #e0e7ff; color: #3b82f6; font-weight: 600" />
@@ -869,8 +897,11 @@ function cancel() {
   cursor: pointer;
   border-radius: 0.875rem;
 }
-.checklist-item--off {
-  opacity: 0.55;
+/* Selection is shown positively; unselected items keep full contrast, since
+   dimming reads as "disabled" when the whole point of the step is choosing. */
+.checklist-item--on {
+  border-color: var(--bdg-blue);
+  background: #f6faff;
 }
 .checklist-item__text {
   display: flex;
