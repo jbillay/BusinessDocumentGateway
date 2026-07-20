@@ -193,31 +193,21 @@ async function submitContact() {
           <p class="hero__audience">For accountants&ensp;·&ensp;bookkeepers&ensp;·&ensp;agencies&ensp;·&ensp;HR&ensp;·&ensp;legal</p>
         </div>
 
-        <!-- Product preview mock -->
-        <div class="hero__preview" aria-hidden="true">
+        <!-- Real screenshot of the live client portal (a seeded demo request), framed as a browser window. -->
+        <div class="hero__preview">
           <div class="mock bdg-card">
-            <div class="mock__head">
+            <div class="mock__head" aria-hidden="true">
               <span class="mock__dot" /><span class="mock__dot" /><span class="mock__dot" />
               <!-- Truthful address: this is what a real portal link looks like today. -->
               <span class="mock__url">business-document-gateway.vercel.app/portal/…</span>
             </div>
-            <div class="mock__body">
-              <div class="mock__title-row">
-                <div>
-                  <div class="mock__label">Document request</div>
-                  <div class="mock__req">Onboarding — Acme Ltd</div>
-                </div>
-                <span class="mock__badge">3 of 4 done</span>
-              </div>
-              <div class="mock__bar"><span style="width: 75%" /></div>
-              <ul class="mock__list">
-                <li class="is-done"><i class="pi pi-check-circle" /> Signed engagement letter</li>
-                <li class="is-done"><i class="pi pi-check-circle" /> Proof of identity</li>
-                <li class="is-done"><i class="pi pi-check-circle" /> Bank statement (last 3 months)</li>
-                <li class="is-pending"><i class="pi pi-circle" /> VAT registration certificate</li>
-              </ul>
-              <div class="mock__foot"><i class="pi pi-clock" /> Due in 5 days · secured with access code</div>
-            </div>
+            <img
+              class="mock__img"
+              src="@/assets/portal-screenshot.webp"
+              width="1456"
+              height="2024"
+              alt="The client upload portal for a request named Onboarding — Acme Ltd: 3 of 4 documents uploaded, a drag-and-drop upload area, and one document still pending."
+            />
           </div>
         </div>
       </div>
@@ -529,7 +519,7 @@ async function submitContact() {
   text-transform: uppercase;
 }
 
-/* Product mock */
+/* Product preview — a real portal screenshot in a browser-window frame */
 .hero__preview {
   perspective: 1600px;
 }
@@ -537,6 +527,11 @@ async function submitContact() {
   overflow: hidden;
   transform: rotateY(-9deg) rotateX(3deg);
   transform-origin: center;
+  /* The screenshot is tall (aspect ≈ 0.72): cap the card's width by the
+     viewport's height budget so the whole portal stays above the fold. */
+  max-width: min(100%, calc((100vh - 12rem) * 0.72));
+  max-width: min(100%, calc((100svh - 12rem) * 0.72));
+  margin-inline: auto;
 }
 .mock__head {
   display: flex;
@@ -557,82 +552,10 @@ async function submitContact() {
   font-size: 0.72rem;
   color: #94a3b8;
 }
-.mock__body {
-  padding: 1.375rem 1.5rem 1.5rem;
-}
-.mock__title-row {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 1rem;
-  margin-bottom: 0.875rem;
-}
-.mock__label {
-  font-size: 0.68rem;
-  font-weight: 600;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  color: #94a3b8;
-}
-.mock__req {
-  font-size: 1.05rem;
-  font-weight: 700;
-  color: var(--bdg-deep);
-}
-.mock__badge {
-  flex-shrink: 0;
-  font-size: 0.72rem;
-  font-weight: 600;
-  color: #047857;
-  background: rgba(5, 150, 105, 0.12);
-  padding: 0.25rem 0.6rem;
-  border-radius: 999px;
-}
-.mock__bar {
-  height: 7px;
-  border-radius: 999px;
-  background: #e2e8f0;
-  overflow: hidden;
-  margin-bottom: 1.125rem;
-}
-.mock__bar span {
+.mock__img {
   display: block;
-  height: 100%;
-  border-radius: 999px;
-  background: var(--bdg-gradient);
-}
-.mock__list {
-  list-style: none;
-  margin: 0 0 1.125rem;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0.7rem;
-}
-.mock__list li {
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-  font-size: 0.9rem;
-  color: var(--bdg-deep);
-}
-.mock__list li.is-done i {
-  color: #059669;
-}
-.mock__list li.is-pending {
-  color: #94a3b8;
-}
-.mock__list li.is-pending i {
-  color: #cbd5e1;
-}
-.mock__foot {
-  font-size: 0.78rem;
-  color: #94a3b8;
-  border-top: 1px solid var(--bdg-border);
-  padding-top: 0.875rem;
-}
-.mock__foot i {
-  margin-right: 0.3rem;
+  width: 100%;
+  height: auto;
 }
 
 /* ---- Metrics ---- */
